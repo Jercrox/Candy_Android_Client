@@ -51,8 +51,8 @@ public class CandyVpnService extends VpnService {
 
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Candy VPN Forensic Core")
-                .setContentText("Handshake Sincronizado Activo")
+                .setContentTitle("Candy VPN")
+                .setContentText("Status: Connected.")
                 .setSmallIcon(R.drawable.icon)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setOngoing(true)
