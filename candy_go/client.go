@@ -43,7 +43,7 @@ var (
 	lastConfig   string
 
 	candyOS       = "android"
-	candyVersion  = "v52-stable"
+	candyVersion  = "v52.2-stable"
 	candyHostname = "android-device"
 
 	globalVMac    string
@@ -323,7 +323,7 @@ func fixPacketChecksums(pkt []byte) {
 
 func StartRelayVPN(tunFd int) {
 	tunFile := os.NewFile(uintptr(tunFd), "/dev/tun")
-	logToMobile("RELAY: Motor v52 (Stable).")
+	logToMobile("RELAY: Motor v52.2 (Stable).")
 	done := make(chan struct{})
 
 	// Tun -> WS
