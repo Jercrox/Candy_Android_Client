@@ -30,12 +30,4 @@ This project is the Android client for Candy VPN, built with a Go mobile library
 2. Sync the project with Gradle files.
 3. Build and Run on your device/emulator.
 
-## Configuration
 
-The app expects a configuration text file with the following format (standard Candy cfg):
-```ini
-websocket = wss://your-server.com/username/network
-password = your_password
-name = your_device_name
-```
-Load this file using the "Gear" icon in the app.
