@@ -30,4 +30,8 @@ This project is the Android client for Candy VPN, built with a Go mobile library
 2. Sync the project with Gradle files.
 3. Build and Run on your device/emulator.
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 
