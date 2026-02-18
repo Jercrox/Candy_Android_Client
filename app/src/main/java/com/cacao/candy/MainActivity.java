@@ -93,11 +93,20 @@ public class MainActivity extends AppCompatActivity {
                 isConnected = intent.getBooleanExtra("connected", false);
                 activeStatus = isConnected;
                 updateUI();
+                if (!isConnected) {
+                    // Clear persistent session data on disconnect
+                    getPreferences(MODE_PRIVATE).edit()
+                        .remove("session_log")
+                        .remove("session_ip")
+                        .apply();
+                }
             }
             
             if (intent.hasExtra("ip")) {
                 String ip = intent.getStringExtra("ip");
                 if (txtIpAddress != null) txtIpAddress.setText(getString(R.string.ip_label) + ip);
+                // Save IP to persistent preferences
+                getPreferences(MODE_PRIVATE).edit().putString("session_ip", ip).apply();
             }
         }
     };
@@ -125,7 +134,19 @@ public class MainActivity extends AppCompatActivity {
         if (crashReport != null) {
             textViewLog.setText("--- [CÓDIGO DE ERROR JAVA (STACKTRACE)] ---\n" + crashReport);
         } else {
-            textViewLog.setText(""); 
+            // Restore persistent log if available
+            String savedLog = getPreferences(MODE_PRIVATE).getString("session_log", "");
+            if (!savedLog.isEmpty()) {
+                textViewLog.setText(savedLog);
+                String savedIp = getPreferences(MODE_PRIVATE).getString("session_ip", "");
+                if (!savedIp.isEmpty()) {
+                    txtIpAddress.setText(getString(R.string.ip_label) + savedIp);
+                }
+                // When restoring, we assume it's connected if we have logs/ip, but we verify with service later
+                this.isConnected = true; 
+            } else {
+                textViewLog.setText(""); 
+            }
         }
 
         setupListeners();
@@ -246,6 +267,9 @@ public class MainActivity extends AppCompatActivity {
             if (isConnected) {
                 stopVpnService(); 
             } else {
+                // Clear old session log when starting a new connection
+                getPreferences(MODE_PRIVATE).edit().remove("session_log").remove("session_ip").apply();
+                textViewLog.setText("");
                 runInitialTrace();
                 appendLog("ACTION: Iniciando secuencia de conexión...");
                 resolveAndConnect();
@@ -291,8 +315,13 @@ public class MainActivity extends AppCompatActivity {
     private void appendLog(String message) {
         runOnUiThread(() -> {
             if (textViewLog == null) return;
-            textViewLog.append("\n[" + dateFormat.format(new Date()) + "] " + message);
+            String entry = "\n[" + dateFormat.format(new Date()) + "] " + message;
+            textViewLog.append(entry);
             scrollViewLog.post(() -> scrollViewLog.fullScroll(View.FOCUS_DOWN));
+            
+            // Persist the log update
+            String currentFullLog = textViewLog.getText().toString();
+            getPreferences(MODE_PRIVATE).edit().putString("session_log", currentFullLog).apply();
         });
     }
 
