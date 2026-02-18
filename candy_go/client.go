@@ -114,6 +114,12 @@ func (a *AuthMessage) UpdateHash(pass string) {
 
 func SetPassword(p string) { password = p }
 
+func SetVMac(vmac string) {
+	if len(vmac) == 16 {
+		globalVMac = vmac
+	}
+}
+
 func SetSystemInfo(osName, version, hostname string) {
 	if osName != "" {
 		candyOS = osName

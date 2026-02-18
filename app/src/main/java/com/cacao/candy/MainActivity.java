@@ -274,13 +274,22 @@ public class MainActivity extends AppCompatActivity {
         if (!savedServer.isEmpty()) {
             editServer.setText(savedServer);
         }
+    }
 
-        // Persistent Client ID
-        String clientId = prefs.getString("client_id", "");
-        if (clientId.isEmpty()) {
-            clientId = UUID.randomUUID().toString().substring(0, 8);
-            prefs.edit().putString("client_id", clientId).apply();
+    private String getIdentityKey(String url) {
+        if (url == null || url.isEmpty()) return "default";
+        // Use a simple hash or sanitized version of the URL as a key for preferences
+        return String.valueOf(url.hashCode());
+    }
+
+    private String generateRandomHex(int length) {
+        String chars = "0123456789abcdef";
+        java.util.Random rnd = new java.util.Random();
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(rnd.nextInt(chars.length())));
         }
+        return sb.toString();
     }
 
     private void setupListeners() {
@@ -384,30 +393,57 @@ public class MainActivity extends AppCompatActivity {
                 String finalUrl = protocol + resolvedIp + port + path;
                 appendLog("DNS_TRACE: Conexión optimizada (URL con IP) -> " + finalUrl);
                 
+                android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+                String idKey = getIdentityKey(serverUrl); // Use the original URL for the key
+                String clientId = prefs.getString("id_" + idKey, "");
+                String vmac = prefs.getString("vmac_" + idKey, "");
+                
+                if (clientId.isEmpty() || vmac.isEmpty()) {
+                    clientId = UUID.randomUUID().toString().substring(0, 8);
+                    vmac = generateRandomHex(16);
+                    prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
+                    appendLog("IDENTITY: Nueva identidad generada para este servidor.");
+                } else {
+                    appendLog("IDENTITY: Restaurando identidad previa para este servidor.");
+                }
+
                 Intent i = new Intent(this, CandyVpnService.class);
                 i.putExtra("server", finalUrl);
                 i.putExtra("password", p);
-                i.putExtra("client_id", getPreferences(MODE_PRIVATE).getString("client_id", "unknown"));
+                i.putExtra("client_id", clientId);
+                i.putExtra("vmac", vmac);
                 startService(i);
             } catch (Exception e) {
                 appendLog("DNS_TRACE: Error re-armando URL, usando original.");
-                Intent i = new Intent(this, CandyVpnService.class);
-                i.putExtra("server", serverUrl);
-                i.putExtra("password", p);
-                i.putExtra("client_id", getPreferences(MODE_PRIVATE).getString("client_id", "unknown"));
-                startService(i);
+                startVpnWithOriginalUrl(serverUrl, p);
             }
         } else {
-             Intent i = new Intent(this, CandyVpnService.class);
-             i.putExtra("server", serverUrl);
-             i.putExtra("password", p);
-             i.putExtra("client_id", getPreferences(MODE_PRIVATE).getString("client_id", "unknown"));
-             startService(i);
+             startVpnWithOriginalUrl(serverUrl, p);
         }
 
         appendLog("CODE: [Start] CandyVpnService.init()");
         isConnected = true;
         updateUI();
+    }
+
+    private void startVpnWithOriginalUrl(String serverUrl, String p) {
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        String idKey = getIdentityKey(serverUrl);
+        String clientId = prefs.getString("id_" + idKey, "");
+        String vmac = prefs.getString("vmac_" + idKey, "");
+
+        if (clientId.isEmpty() || vmac.isEmpty()) {
+            clientId = UUID.randomUUID().toString().substring(0, 8);
+            vmac = generateRandomHex(16);
+            prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
+        }
+
+        Intent i = new Intent(this, CandyVpnService.class);
+        i.putExtra("server", serverUrl);
+        i.putExtra("password", p);
+        i.putExtra("client_id", clientId);
+        i.putExtra("vmac", vmac);
+        startService(i);
     }
 
     private void stopVpnService() {

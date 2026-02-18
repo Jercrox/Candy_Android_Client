@@ -70,12 +70,18 @@ public class CandyVpnService extends VpnService {
         String server = intent.getStringExtra("server");
         String password = intent.getStringExtra("password");
         String clientId = intent.getStringExtra("client_id");
+        String vmac = intent.getStringExtra("vmac");
         if (clientId == null) clientId = "android_" + android.os.Build.ID;
 
         if (server != null) {
             if (password != null) {
                 Candy_mobile.setPassword(password);
                 sendStatus("CODE: Candy_mobile.setPassword(***" + password.length() + " chars***)", "Auth");
+            }
+            
+            if (vmac != null && !vmac.isEmpty()) {
+                Candy_mobile.setVMac(vmac);
+                sendStatus("CODE: Candy_mobile.setVMac(" + vmac + ")", "Identity");
             }
             
             // Configurar log de Go para verlo en el Registro Técnico
