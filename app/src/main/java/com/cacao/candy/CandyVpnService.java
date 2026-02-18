@@ -69,6 +69,8 @@ public class CandyVpnService extends VpnService {
 
         String server = intent.getStringExtra("server");
         String password = intent.getStringExtra("password");
+        String clientId = intent.getStringExtra("client_id");
+        if (clientId == null) clientId = "android_" + android.os.Build.ID;
 
         if (server != null) {
             if (password != null) {
@@ -79,12 +81,13 @@ public class CandyVpnService extends VpnService {
             // Configurar log de Go para verlo en el Registro Técnico
             Candy_mobile.setLogListener(msg -> sendStatus(msg, "RelayGo"));
 
+            String identityHost = android.os.Build.MODEL + "_" + clientId;
             Candy_mobile.setSystemInfo(
-                    "android",             // info[1] -> OS
-                    "v52-stable",          // info[2] -> Version
-                    android.os.Build.MODEL // info[3] -> Hostname
+                    "android",    // info[1] -> OS
+                    "v52-stable", // info[2] -> Version
+                    identityHost  // info[3] -> Hostname (unique per client instance)
             );
-            sendStatus("CODE: Identity Update: OS:android | Ver:v52 | Host:" + android.os.Build.MODEL, "Identity");
+            sendStatus("CODE: Identity Update: OS:android | Ver:v52 | Host:" + identityHost, "Identity");
 
             if (vpnThread != null && vpnThread.isAlive()) {
                 sendStatus("DEBUG: Hilo VPN ya está en bucle vital. Ignorando nuevo arranque.", "Looping");

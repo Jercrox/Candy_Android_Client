@@ -33,6 +33,7 @@ import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.UUID;
 
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -273,6 +274,13 @@ public class MainActivity extends AppCompatActivity {
         if (!savedServer.isEmpty()) {
             editServer.setText(savedServer);
         }
+
+        // Persistent Client ID
+        String clientId = prefs.getString("client_id", "");
+        if (clientId.isEmpty()) {
+            clientId = UUID.randomUUID().toString().substring(0, 8);
+            prefs.edit().putString("client_id", clientId).apply();
+        }
     }
 
     private void setupListeners() {
@@ -379,18 +387,21 @@ public class MainActivity extends AppCompatActivity {
                 Intent i = new Intent(this, CandyVpnService.class);
                 i.putExtra("server", finalUrl);
                 i.putExtra("password", p);
+                i.putExtra("client_id", getPreferences(MODE_PRIVATE).getString("client_id", "unknown"));
                 startService(i);
             } catch (Exception e) {
                 appendLog("DNS_TRACE: Error re-armando URL, usando original.");
                 Intent i = new Intent(this, CandyVpnService.class);
                 i.putExtra("server", serverUrl);
                 i.putExtra("password", p);
+                i.putExtra("client_id", getPreferences(MODE_PRIVATE).getString("client_id", "unknown"));
                 startService(i);
             }
         } else {
              Intent i = new Intent(this, CandyVpnService.class);
              i.putExtra("server", serverUrl);
              i.putExtra("password", p);
+             i.putExtra("client_id", getPreferences(MODE_PRIVATE).getString("client_id", "unknown"));
              startService(i);
         }
 
