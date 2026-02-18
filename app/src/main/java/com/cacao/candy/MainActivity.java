@@ -1,3 +1,8 @@
+/*
+ * Candy VPN Android Client
+ * Developed by: Jercrox
+ * License: MIT
+ */
 package com.cacao.candy;
 
 import android.app.Activity;
