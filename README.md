@@ -1,6 +1,10 @@
 # Candy Android Client
 
-This project is the Android client for Candy VPN, built with a Go mobile library for the protocol logic.
+This project is the Android client for the **Candy VPN** project. 
+
+- **Upstream Project:** [lanthora/candy](https://github.com/lanthora/candy)
+
+This client is built with a Go mobile library for the protocol logic.
 
 ## Prerequisites
 
