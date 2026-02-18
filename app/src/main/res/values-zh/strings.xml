@@ -2,16 +2,17 @@
     <string name="app_name">Candy VPN</string>
     <string name="connect">连接</string>
     <string name="disconnect">断开连接</string>
-    <string name="status_label">状态: </string>
-    <string name="disconnected">未连接</string>
-    <string name="operational">运行中</string>
-    <string name="ip_label">IP: </string>
+    <string name="status_label">"状态： "</string>
+    <string name="disconnected">已断开</string>
+    <string name="operational">已连接</string>
+    <string name="ip_label">"IP: "</string>
     <string name="technical_log">技术日志 V52</string>
     <string name="copy">复制</string>
     <string name="expand">展开</string>
     <string name="reduce">缩小</string>
     <string name="server_hint">ws://域名_或_IP:端口/用户/网络名称</string>
     <string name="password_hint">密码</string>
+    <string name="connecting">正在连接...</string>
     <string name="resolving">解析中...</string>
     <string name="log_sync">UI同步: 正在与活动同步运行状态。</string>
     <string name="log_fg_started">系统: 前台服务已启动 (防止系统自动关闭)。</string>
@@ -20,4 +21,24 @@
     <string name="log_tun_ok">系统响应: [成功] TUN 接口已建立。FD=%1$d MTU=1280</string>
     <string name="log_relay_end">调试: 中继已结束或断开连接。</string>
     <string name="msg_disconnect_to_change_lang">请断开连接以更改语言</string>
+    <string name="log_connecting">操作: 正在启动连接序列...</string>
+    <string name="log_resolving_host">技术: 正在解析主机: %1$s</string>
+    <string name="log_host_resolved">技术: 主机已解析为 IP: %1$s</string>
+    <string name="log_handshake_start">核心: 正在启动握手协议...</string>
+    <string name="log_handshake_ok">核心: 握手成功。正在配置 VPN...</string>
+    <string name="log_handshake_fail">核心: 握手失败。正在重试...</string>
+    <string name="log_identity_update">核心: 身份已更新。准备连接。</string>
+    <string name="log_cleaning_tun">系统: 正在清理旧的网络接口。</string>
+    <string name="log_trace_header">--- CANDY VPN 原生克隆版 v52 ---</string>
+    <string name="log_os_info">系统信息: Android %1$s (API %2$d)</string>
+    <string name="log_kernel_info">系统信息: 架构=%1$s | 内核=%2$s</string>
+    <string name="log_net_info">网络信息: %1$s (%2$s)</string>
+    <string name="log_pass_loaded">配置: 网络密码已加载。</string>
+    <string name="log_dns_error">技术: 解析错误: %1$s</string>
+    <string name="log_optimized_conn">技术: 优化连接 (带 IP 的 URL) -> %1$s</string>
+    <string name="log_identity_new">身份: 已为此服务器生成新身份。</string>
+    <string name="log_identity_restore">身份: 正在恢复此服务器的先前身份。</string>
+    <string name="log_vmac_info">核心: VMAC 已设置为 %1$s</string>
+    <string name="log_ip_assigned">核心: 已分配 IPv4 -> %1$s</string>
+    <string name="msg_invalid_url">错误: 请输入有效的密码，并检查 Candy VPN URL 是否正确且拼写无误。</string>
 </resources>

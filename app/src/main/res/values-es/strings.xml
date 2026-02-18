@@ -2,16 +2,17 @@
     <string name="app_name">Candy VPN</string>
     <string name="connect">CONECTAR</string>
     <string name="disconnect">DESCONECTAR</string>
-    <string name="status_label">Estado: </string>
-    <string name="disconnected">Desconectado</string>
-    <string name="operational">Operativo</string>
-    <string name="ip_label">IP: </string>
+    <string name="status_label">"Estado: "</string>
+    <string name="disconnected">Desconectado.</string>
+    <string name="operational">Conectado.</string>
+    <string name="ip_label">"IP: "</string>
     <string name="technical_log">REGISTRO TÉCNICO V52</string>
     <string name="copy">COPIAR</string>
     <string name="expand">AMPLIAR</string>
     <string name="reduce">REDUCIR</string>
     <string name="server_hint">ws://Domain_or_ip:port/User/Netname</string>
     <string name="password_hint">Password</string>
+    <string name="connecting">Conectando...</string>
     <string name="resolving">RESOLVIENDO...</string>
     <string name="log_sync">SINC_UI: Sincronizando estado operativo con la actividad.</string>
     <string name="log_fg_started">SISTEMA: ForegroundService iniciado (Evita cierre por OOM Killer).</string>
@@ -20,4 +21,24 @@
     <string name="log_tun_ok">RESPUESTA_SISTEMA: [ÉXITO] Interfaz TUN establecida. FD=%1$d MTU=1280</string>
     <string name="log_relay_end">DEPURACIÓN: El relay ha finalizado o se ha desconectado.</string>
     <string name="msg_disconnect_to_change_lang">Por favor desconéctate para cambiar el idioma</string>
+    <string name="log_connecting">ACCIÓN: Iniciando secuencia de conexión...</string>
+    <string name="log_resolving_host">TÉCNICO: Resolviendo host: %1$s</string>
+    <string name="log_host_resolved">TÉCNICO: Host resuelto a la IP: %1$s</string>
+    <string name="log_handshake_start">NÚCLEO: Iniciando protocolo de enlace (handshake)...</string>
+    <string name="log_handshake_ok">NÚCLEO: Enlace exitoso. Configurando VPN...</string>
+    <string name="log_handshake_fail">NÚCLEO: El enlace falló. Reintentando...</string>
+    <string name="log_identity_update">NÚCLEO: Identidad actualizada. Listo para la conexión.</string>
+    <string name="log_cleaning_tun">SISTEMA: Limpiando interfaces de red previas.</string>
+    <string name="log_trace_header">--- CANDY VPN CLON NATIVO v52 ---</string>
+    <string name="log_os_info">INFO_SO: Android %1$s (API %2$d)</string>
+    <string name="log_kernel_info">INFO_SO: Arq=%1$s | Kernel=%2$s</string>
+    <string name="log_net_info">INFO_RED: %1$s (%2$s)</string>
+    <string name="log_pass_loaded">CONFIG: Contraseña de red cargada.</string>
+    <string name="log_dns_error">TÉCNICO: Error de resolución: %1$s</string>
+    <string name="log_optimized_conn">TÉCNICO: Conexión optimizada (URL con IP) -> %1$s</string>
+    <string name="log_identity_new">IDENTIDAD: Nueva identidad generada para este servidor.</string>
+    <string name="log_identity_restore">IDENTIDAD: Restaurando identidad previa para este servidor.</string>
+    <string name="log_vmac_info">NÚCLEO: VMAC establecida en %1$s</string>
+    <string name="log_ip_assigned">NÚCLEO: IPv4 asignada -> %1$s</string>
+    <string name="msg_invalid_url">ERROR: Por favor ingrese una contraseña válida y verifique si la URL de Candy VPN es correcta y está bien escrita.</string>
 </resources>

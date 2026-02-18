@@ -21,6 +21,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.inputmethod.InputMethodManager;
+import android.view.MotionEvent;
+import android.graphics.Rect;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -76,36 +79,44 @@ public class MainActivity extends AppCompatActivity {
             if (intent.hasExtra("logResId")) {
                 int resId = intent.getIntExtra("logResId", 0);
                 if (intent.hasExtra("logArg")) {
-                    log = getString(resId, intent.getIntExtra("logArg", 0));
+                    Object arg = intent.getExtras().get("logArg");
+                    log = getString(resId, arg);
                 } else {
                     log = getString(resId);
                 }
             }
-            if (log != null) appendLog(log);
+            
+            boolean isTechnical = intent.getBooleanExtra("isTechnical", false);
+            if (log != null) {
+                appendLog(log, isTechnical);
+            }
             
             String status = intent.getStringExtra("status");
             if (status != null) {
                 String localizedStatus = status;
+                // Native status mapping
                 if (status.equals("Operativo")) localizedStatus = getString(R.string.operational);
                 else if (status.equals("Desconectado")) localizedStatus = getString(R.string.disconnected);
                 
                 txtStatus.setText(getString(R.string.status_label) + localizedStatus);
-                if (status.contains("Desconectado") || status.contains("Terminado")) {
+                
+                // Absolute termination statuses
+                if (status.contains("Desconectado") || status.contains("Terminado") || status.equals("Error")) {
                      if (txtIpAddress != null) txtIpAddress.setText(getString(R.string.ip_label) + "-");
+                     isConnected = false;
+                     activeStatus = false;
+                     updateUI();
                 }
             }
             
             if (intent.hasExtra("connected")) {
-                isConnected = intent.getBooleanExtra("connected", false);
-                activeStatus = isConnected;
-                updateUI();
-                if (!isConnected) {
-                    // Clear persistent session data on disconnect
-                    getPreferences(MODE_PRIVATE).edit()
-                        .remove("session_log")
-                        .remove("session_ip")
-                        .apply();
+                boolean serviceConnected = intent.getBooleanExtra("connected", false);
+                if (serviceConnected) {
+                    isConnected = true;
+                    activeStatus = true;
+                    updateUI();
                 }
+                // Note: We don't set isConnected to false here to avoid flickering during handshake
             }
             
             if (intent.hasExtra("ip")) {
@@ -140,27 +151,34 @@ public class MainActivity extends AppCompatActivity {
         if (crashReport != null) {
             textViewLog.setText("--- [CÓDIGO DE ERROR JAVA (STACKTRACE)] ---\n" + crashReport);
         } else {
-            // Restore persistent log if available
+            // Restore hidden technical log for IP recovery ONLY if service is active
+            if (activeStatus) {
+                String internalLog = getPreferences(MODE_PRIVATE).getString("internal_log", "");
+                if (!internalLog.isEmpty()) {
+                    String savedIp = getPreferences(MODE_PRIVATE).getString("session_ip", "");
+                    if (savedIp.isEmpty()) {
+                        // Extract from internal log (always has IPv4=...)
+                        int idx = internalLog.lastIndexOf("IPv4=");
+                        if (idx != -1) {
+                            int end = internalLog.indexOf(" ", idx + 5);
+                            if (end == -1) end = internalLog.length();
+                            savedIp = internalLog.substring(idx + 5, end).trim();
+                            if (savedIp.endsWith("|")) savedIp = savedIp.substring(0, savedIp.length()-1).trim();
+                        }
+                    }
+                    
+                    if (!savedIp.isEmpty()) {
+                        txtIpAddress.setText(getString(R.string.ip_label) + savedIp);
+                    }
+                }
+            } else {
+                if (txtIpAddress != null) txtIpAddress.setText(getString(R.string.ip_label) + "-");
+            }
+
+            // Restore persistent visible log if available
             String savedLog = getPreferences(MODE_PRIVATE).getString("session_log", "");
             if (!savedLog.isEmpty()) {
                 textViewLog.setText(savedLog);
-                String savedIp = getPreferences(MODE_PRIVATE).getString("session_ip", "");
-                if (savedIp.isEmpty()) {
-                    // Fallback: extract from log if not in preferences
-                    int idx = savedLog.lastIndexOf("IPv4=");
-                    if (idx != -1) {
-                        int end = savedLog.indexOf(" ", idx + 5);
-                        if (end == -1) end = savedLog.length();
-                        savedIp = savedLog.substring(idx + 5, end).trim();
-                        if (savedIp.endsWith("|")) savedIp = savedIp.substring(0, savedIp.length()-1).trim();
-                    }
-                }
-                
-                if (!savedIp.isEmpty()) {
-                    txtIpAddress.setText(getString(R.string.ip_label) + savedIp);
-                }
-                // When restoring, we assume it's connected if we have logs/ip, but we verify with service later
-                this.isConnected = true; 
             } else {
                 textViewLog.setText(""); 
             }
@@ -168,9 +186,7 @@ public class MainActivity extends AppCompatActivity {
 
         setupListeners();
         
-        if (activeStatus) {
-            this.isConnected = true;
-        }
+        this.isConnected = activeStatus;
         updateUI();
         if (isConnected) {
             checkServiceStatus();
@@ -192,19 +208,26 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 String host = urlString;
-                if (host.startsWith("ws://")) host = host.substring(5);
-                if (host.startsWith("wss://")) host = host.substring(6);
+                String lowerUrl = urlString.toLowerCase();
+                if (lowerUrl.startsWith("ws://")) host = urlString.substring(5);
+                else if (lowerUrl.startsWith("wss://")) host = urlString.substring(6);
+                
                 int slashIndex = host.indexOf("/");
                 if (slashIndex != -1) host = host.substring(0, slashIndex);
                 int colonIndex = host.indexOf(":");
                 if (colonIndex != -1) host = host.substring(0, colonIndex);
 
-                appendLog("DNS_TRACE: Resolviendo host '" + host + "'...");
+                appendLog("DNS_TRACE: Resolviendo host '" + host + "'...", true);
+                sendLocalizedStatus(R.string.log_resolving_host, host, false);
+                
                 java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
-                if (addresses.length > 0) resolvedIp = addresses[0].getHostAddress();
+                if (addresses.length > 0) {
+                    resolvedIp = addresses[0].getHostAddress();
+                    sendLocalizedStatus(R.string.log_host_resolved, resolvedIp, false);
+                }
                 
                 for (java.net.InetAddress addr : addresses) {
-                    appendLog("DNS_TRACE: Host '" + host + "' apunta a IP: " + addr.getHostAddress());
+                    appendLog("DNS_TRACE: Host '" + host + "' apunta a IP: " + addr.getHostAddress(), true);
                 }
                 
                 runOnUiThread(() -> {
@@ -213,25 +236,28 @@ public class MainActivity extends AppCompatActivity {
                 });
                 
             } catch (Exception e) {
-                appendLog("DNS_TRACE: Error de resolución: " + e.getMessage());
+                appendLog("DNS_TRACE: Error de resolución: " + e.getMessage(), true);
+                sendLocalizedStatus(R.string.log_dns_error, e.getMessage(), false);
                 runOnUiThread(() -> {
                      btnConnect.setEnabled(true);
-                     prepareVpn();
+                     isConnected = false;
+                     updateUI();
                 });
             }
         }).start();
     }
 
     private void runInitialTrace() {
-        textViewLog.setText("--- CANDY VPN NATIVE CLONE v30 ---\n");
-        appendLog("OS_INFO: Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
-        appendLog("OS_INFO: Arch=" + Build.CPU_ABI + " | Kernel=" + System.getProperty("os.version"));
+        textViewLog.setText("");
+        sendLocalizedStatus(R.string.log_trace_header, null, false);
+        sendLocalizedStatus(R.string.log_os_info, Build.VERSION.RELEASE, Build.VERSION.SDK_INT);
+        sendLocalizedStatus(R.string.log_kernel_info, Build.CPU_ABI, System.getProperty("os.version"));
         
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm != null) {
             NetworkInfo net = cm.getActiveNetworkInfo();
             if (net != null) {
-                appendLog("NET_INFO: " + net.getTypeName() + " (" + net.getDetailedState() + ")");
+                sendLocalizedStatus(R.string.log_net_info, net.getTypeName(), net.getDetailedState());
             }
         }
 
@@ -239,7 +265,7 @@ public class MainActivity extends AppCompatActivity {
         String savedPass = prefs.getString("password", "");
         if (!savedPass.isEmpty()) {
             editPassword.setText(savedPass);
-            appendLog("CONFIG: Contraseña de red cargada.");
+            sendLocalizedStatus(R.string.log_pass_loaded, null, false);
         }
     }
 
@@ -287,6 +313,21 @@ public class MainActivity extends AppCompatActivity {
         return String.valueOf(url.hashCode());
     }
 
+    private void sendLocalizedStatus(int resId, Object arg, boolean isTechnical) {
+        String log;
+        if (arg != null) {
+            log = getString(resId, arg);
+        } else {
+            log = getString(resId);
+        }
+        appendLog(log, isTechnical);
+    }
+
+    private void sendLocalizedStatus(int resId, Object arg1, Object arg2) {
+        String log = getString(resId, arg1, arg2);
+        appendLog(log, false);
+    }
+
     private String generateRandomHex(int length) {
         String chars = "0123456789abcdef";
         java.util.Random rnd = new java.util.Random();
@@ -302,11 +343,29 @@ public class MainActivity extends AppCompatActivity {
             if (isConnected) {
                 stopVpnService(); 
             } else {
-                // Clear old session log when starting a new connection
-                getPreferences(MODE_PRIVATE).edit().remove("session_log").remove("session_ip").apply();
+                String pass = editPassword.getText().toString().trim();
+                String server = editServer.getText().toString().trim();
+                
+                if (server.isEmpty()) {
+                    Toast.makeText(this, R.string.server_hint, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (pass.isEmpty()) {
+                    Toast.makeText(this, R.string.password_hint, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Clear old session logs when starting a new connection
+                getPreferences(MODE_PRIVATE).edit()
+                    .remove("session_log")
+                    .remove("internal_log")
+                    .remove("session_ip")
+                    .apply();
                 textViewLog.setText("");
+                resolvedIp = null; // Reset IP to avoid using old one from previous attempts
                 runInitialTrace();
-                appendLog("ACTION: Iniciando secuencia de conexión...");
+                appendLog("ACTION: Iniciando secuencia de conexión...", true);
+                sendLocalizedStatus(R.string.log_connecting, null, false);
                 resolveAndConnect();
             }
         });
@@ -345,18 +404,45 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
+
+        // Hide keyboard when touching the log area
+        View.OnTouchListener hideKeyboardListener = (v, event) -> {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null && getCurrentFocus() != null) {
+                imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+            }
+            return false; // Don't consume the event, let the ScrollView handle it
+        };
+
+        if (scrollViewLog != null) scrollViewLog.setOnTouchListener(hideKeyboardListener);
+        if (textViewLog != null) textViewLog.setOnTouchListener(hideKeyboardListener);
     }
 
     private void appendLog(String message) {
+        appendLog(message, false);
+    }
+
+    private void appendLog(String message, boolean isTechnical) {
         runOnUiThread(() -> {
             if (textViewLog == null) return;
-            String entry = "\n[" + dateFormat.format(new Date()) + "] " + message;
-            textViewLog.append(entry);
-            scrollViewLog.post(() -> scrollViewLog.fullScroll(View.FOCUS_DOWN));
+            String timePrefix = "[" + dateFormat.format(new Date()) + "] ";
+            String entry = "\n" + timePrefix + message;
             
-            // Persist the log update
-            String currentFullLog = textViewLog.getText().toString();
-            getPreferences(MODE_PRIVATE).edit().putString("session_log", currentFullLog).apply();
+            // Save to internal technical log always
+            String internalLog = getPreferences(MODE_PRIVATE).getString("internal_log", "");
+            internalLog += entry;
+            // Cap internal log size
+            if (internalLog.length() > 50000) internalLog = internalLog.substring(internalLog.length() - 50000);
+            getPreferences(MODE_PRIVATE).edit().putString("internal_log", internalLog).apply();
+
+            // Display and save visible log only if NOT exclusively technical
+            if (!isTechnical) {
+                textViewLog.append(entry);
+                scrollViewLog.post(() -> scrollViewLog.fullScroll(View.FOCUS_DOWN));
+                
+                String currentFullLog = textViewLog.getText().toString();
+                getPreferences(MODE_PRIVATE).edit().putString("session_log", currentFullLog).apply();
+            }
         });
     }
 
@@ -384,8 +470,9 @@ public class MainActivity extends AppCompatActivity {
             .apply();
         if (resolvedIp != null && !serverUrl.isEmpty()) {
             try {
-                String protocol = serverUrl.contains("://") ? serverUrl.substring(0, serverUrl.indexOf("://") + 3) : "ws://";
-                String hostAndRest = serverUrl.substring(protocol.length());
+                int protocolEnd = serverUrl.indexOf("://");
+                String protocol = (protocolEnd != -1) ? serverUrl.substring(0, protocolEnd + 3) : "ws://";
+                String hostAndRest = (protocolEnd != -1) ? serverUrl.substring(protocolEnd + 3) : serverUrl;
                 String path = "";
                 if (hostAndRest.contains("/")) {
                     path = hostAndRest.substring(hostAndRest.indexOf("/"));
@@ -396,7 +483,8 @@ public class MainActivity extends AppCompatActivity {
                     port = hostAndRest.substring(hostAndRest.indexOf(":"));
                 }
                 String finalUrl = protocol + resolvedIp + port + path;
-                appendLog("DNS_TRACE: Conexión optimizada (URL con IP) -> " + finalUrl);
+                appendLog("DNS_TRACE: Conexión optimizada (URL con IP) -> " + finalUrl, true);
+                sendLocalizedStatus(R.string.log_optimized_conn, finalUrl, false);
                 
                 android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
                 String idKey = getIdentityKey(serverUrl); // Use the original URL for the key
@@ -407,9 +495,9 @@ public class MainActivity extends AppCompatActivity {
                     clientId = UUID.randomUUID().toString().substring(0, 8);
                     vmac = generateRandomHex(16);
                     prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
-                    appendLog("IDENTITY: Nueva identidad generada para este servidor.");
+                    sendLocalizedStatus(R.string.log_identity_new, null, false);
                 } else {
-                    appendLog("IDENTITY: Restaurando identidad previa para este servidor.");
+                    sendLocalizedStatus(R.string.log_identity_restore, null, false);
                 }
 
                 Intent i = new Intent(this, CandyVpnService.class);
@@ -457,6 +545,7 @@ public class MainActivity extends AppCompatActivity {
         i.setAction("STOP");
         startService(i);
         isConnected = false;
+        if (txtIpAddress != null) txtIpAddress.setText(getString(R.string.ip_label) + "-");
         updateUI();
     }
 
@@ -464,6 +553,7 @@ public class MainActivity extends AppCompatActivity {
         btnConnect.setText(isConnected ? R.string.disconnect : R.string.connect);
         String localizedStatus = isConnected ? getString(R.string.operational) : getString(R.string.disconnected);
         txtStatus.setText(getString(R.string.status_label) + localizedStatus);
+        
         txtLogHeader.setText(R.string.technical_log);
         btnResizeLog.setText(isLogMaximized ? R.string.reduce : R.string.expand);
         if (spinnerLanguage != null) spinnerLanguage.setEnabled(!isConnected);
@@ -509,5 +599,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         unregisterReceiver(logReceiver);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            View v = getCurrentFocus();
+            if (v instanceof EditText) {
+                Rect outRect = new Rect();
+                v.getGlobalVisibleRect(outRect);
+                if (!outRect.contains((int)event.getRawX(), (int)event.getRawY())) {
+                    v.clearFocus();
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+                }
+            }
+        }
+        return super.dispatchTouchEvent(event);
     }
 }
