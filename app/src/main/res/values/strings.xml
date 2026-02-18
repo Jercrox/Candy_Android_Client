@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Candy VPN</string>
+    <string name="connect">CONNECT</string>
+    <string name="disconnect">DISCONNECT</string>
+    <string name="status_label">Status: </string>
+    <string name="disconnected">Disconnected</string>
+    <string name="operational">Operational</string>
+    <string name="ip_label">IP: </string>
+    <string name="technical_log">TECHNICAL LOG V52</string>
+    <string name="copy">COPY</string>
+    <string name="expand">EXPAND</string>
+    <string name="reduce">REDUCE</string>
+    <string name="server_hint">ws://Domain_or_ip:port/User/Netname</string>
+    <string name="password_hint">Password</string>
+    <string name="resolving">RESOLVING...</string>
+    <string name="log_sync">UI_SYNC: Synchronizing operational state with activity.</string>
+    <string name="log_fg_started">SYSTEM: ForegroundService started (Prevents Android OOM Killer).</string>
+    <string name="log_wakelock">SYSTEM: WakeLock [PARTIAL] acquired successfully.</string>
+    <string name="log_thread_start">SYSTEM_THREAD: Starting VPN control loop [CandyVPN-Forensic].</string>
+    <string name="log_tun_ok">SYSTEM_RESPONSE: [SUCCESS] TUN interface established. FD=%1$d MTU=1280</string>
+    <string name="log_relay_end">DEBUG: Relay has ended or disconnected.</string>
+    <string name="msg_disconnect_to_change_lang">Please disconnect to change language</string>
+</resources>

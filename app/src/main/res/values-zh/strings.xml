@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Candy VPN</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开连接</string>
+    <string name="status_label">状态: </string>
+    <string name="disconnected">未连接</string>
+    <string name="operational">运行中</string>
+    <string name="ip_label">IP: </string>
+    <string name="technical_log">技术日志 V52</string>
+    <string name="copy">复制</string>
+    <string name="expand">展开</string>
+    <string name="reduce">缩小</string>
+    <string name="server_hint">ws://域名_或_IP:端口/用户/网络名称</string>
+    <string name="password_hint">密码</string>
+    <string name="resolving">解析中...</string>
+    <string name="log_sync">UI同步: 正在与活动同步运行状态。</string>
+    <string name="log_fg_started">系统: 前台服务已启动 (防止系统自动关闭)。</string>
+    <string name="log_wakelock">系统: 唤醒锁 [部分] 已成功获取。</string>
+    <string name="log_thread_start">系统线程: 正在启动 VPN 控制循环 [CandyVPN-Forensic]。</string>
+    <string name="log_tun_ok">系统响应: [成功] TUN 接口已建立。FD=%1$d MTU=1280</string>
+    <string name="log_relay_end">调试: 中继已结束或断开连接。</string>
+    <string name="msg_disconnect_to_change_lang">请断开连接以更改语言</string>
+</resources>
