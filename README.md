@@ -5,7 +5,12 @@ https://github.com/lanthora/candy
 
 This client is built with a Go mobile library for the protocol logic.
 
-## Prerequisites
+## Download APK
+
+You can download the latest version for Android directly from the Releases:
+https://github.com/Jercrox/Candy_Android_Client/releases/tag/candy-android-vpn-client
+
+## Prerequisites for compiling the Android client
 
 - Go 1.18+
 - Android Studio / Android SDK
