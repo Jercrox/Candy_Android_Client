@@ -8,7 +8,7 @@ This client is built with a Go mobile library for the protocol logic.
 ## Download APK
 
 You can download the latest version for Android directly from the Releases:
-https://github.com/Jercrox/Candy_Android_Client/releases/tag/candy-android-vpn-client
+https://github.com/Jercrox/Candy_Android_Client/releases
 
 ## Prerequisites for compiling the Android client
 
