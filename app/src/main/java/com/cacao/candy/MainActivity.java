@@ -151,10 +151,12 @@ public class MainActivity extends AppCompatActivity {
 
         setupListeners();
         
-        this.isConnected = activeStatus;
+        if (activeStatus) {
+            this.isConnected = true;
+        }
         updateUI();
         if (isConnected) {
-             checkServiceStatus();
+            checkServiceStatus();
         }
     }
 
