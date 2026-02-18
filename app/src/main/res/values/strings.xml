@@ -6,7 +6,7 @@
     <string name="disconnected">Disconnected.</string>
     <string name="operational">Connected.</string>
     <string name="ip_label">"IP: "</string>
-    <string name="technical_log">TECHNICAL LOG V52</string>
+    <string name="technical_log">TECHNICAL LOG V52.2</string>
     <string name="copy">COPY</string>
     <string name="expand">EXPAND</string>
     <string name="reduce">REDUCE</string>
