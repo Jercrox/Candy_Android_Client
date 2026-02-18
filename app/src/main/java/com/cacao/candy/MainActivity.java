@@ -139,6 +139,17 @@ public class MainActivity extends AppCompatActivity {
             if (!savedLog.isEmpty()) {
                 textViewLog.setText(savedLog);
                 String savedIp = getPreferences(MODE_PRIVATE).getString("session_ip", "");
+                if (savedIp.isEmpty()) {
+                    // Fallback: extract from log if not in preferences
+                    int idx = savedLog.lastIndexOf("IPv4=");
+                    if (idx != -1) {
+                        int end = savedLog.indexOf(" ", idx + 5);
+                        if (end == -1) end = savedLog.length();
+                        savedIp = savedLog.substring(idx + 5, end).trim();
+                        if (savedIp.endsWith("|")) savedIp = savedIp.substring(0, savedIp.length()-1).trim();
+                    }
+                }
+                
                 if (!savedIp.isEmpty()) {
                     txtIpAddress.setText(getString(R.string.ip_label) + savedIp);
                 }
