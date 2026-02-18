@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Candy VPN</string>
+    <string name="connect">CONECTAR</string>
+    <string name="disconnect">DESCONECTAR</string>
+    <string name="status_label">Estado: </string>
+    <string name="disconnected">Desconectado</string>
+    <string name="operational">Operativo</string>
+    <string name="ip_label">IP: </string>
+    <string name="technical_log">REGISTRO TÉCNICO V52</string>
+    <string name="copy">COPIAR</string>
+    <string name="expand">AMPLIAR</string>
+    <string name="reduce">REDUCIR</string>
+    <string name="server_hint">ws://Domain_or_ip:port/User/Netname</string>
+    <string name="password_hint">Password</string>
+    <string name="resolving">RESOLVIENDO...</string>
+    <string name="log_sync">SINC_UI: Sincronizando estado operativo con la actividad.</string>
+    <string name="log_fg_started">SISTEMA: ForegroundService iniciado (Evita cierre por OOM Killer).</string>
+    <string name="log_wakelock">SISTEMA: WakeLock [PARTIAL] adquirido correctamente.</string>
+    <string name="log_thread_start">HILO_SISTEMA: Iniciando bucle de control VPN [CandyVPN-Forensic].</string>
+    <string name="log_tun_ok">RESPUESTA_SISTEMA: [ÉXITO] Interfaz TUN establecida. FD=%1$d MTU=1280</string>
+    <string name="log_relay_end">DEPURACIÓN: El relay ha finalizado o se ha desconectado.</string>
+    <string name="msg_disconnect_to_change_lang">Por favor desconéctate para cambiar el idioma</string>
+</resources>
