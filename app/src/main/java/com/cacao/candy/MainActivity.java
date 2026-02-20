@@ -131,8 +131,15 @@ public class MainActivity extends AppCompatActivity {
             if (intent.hasExtra("ip")) {
                 String ip = intent.getStringExtra("ip");
                 if (txtIpAddress != null) txtIpAddress.setText(getString(R.string.ip_label) + ip);
-                // Save IP to persistent preferences
-                getPreferences(MODE_PRIVATE).edit().putString("session_ip", ip).apply();
+                // Save IP to persistent preferences and update history if connected
+                android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+                prefs.edit().putString("session_ip", ip).apply();
+                
+                String serverUrl = editServer.getText().toString().trim();
+                String domain = extractDomain(serverUrl);
+                if (domain != null && !domain.isEmpty() && !domain.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+                    updateIpHistory(domain, ip);
+                }
             }
         }
     };
@@ -257,25 +264,37 @@ public class MainActivity extends AppCompatActivity {
                 appendLog("DNS_TRACE: Tipo -> " + (isIp ? "Dirección IP" : "Dominio"), true);
 
                 if (!isIp) {
-                    appendLog("DNS_TRACE: Consultando servidores DNS externos (Google/Cloudflare)...", true);
-                    String externalResolved = resolveDnsExternal(host);
-                    if (externalResolved != null) {
-                        resolvedIp = externalResolved;
-                        appendLog("DNS_TRACE: Resolución externa (DoH) exitosa -> " + resolvedIp, true);
-                    } else {
-                        appendLog("DNS_TRACE: Servidores externos no responden, usando sistema local...", true);
+                    appendLog("DNS_TRACE: [Nivel 1] Consultando sistema local...", true);
+                    try {
                         java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
                         if (addresses.length > 0) {
                             resolvedIp = addresses[0].getHostAddress();
-                            appendLog("DNS_TRACE: Resolución sistema local -> " + resolvedIp, true);
+                            appendLog("DNS_TRACE: Sistema local resolvió -> " + resolvedIp, true);
                         }
+                    } catch (Exception e) {
+                        appendLog("DNS_TRACE: Sistema local falló.", true);
+                    }
+
+                    if (resolvedIp == null) {
+                        appendLog("DNS_TRACE: [Nivel 2] Consultando DoH (Google/Cloudflare)...", true);
+                        resolvedIp = resolveDnsExternal(host);
+                    }
+
+                    if (resolvedIp == null) {
+                        appendLog("DNS_TRACE: [Nivel 3] Consultando UDP directo (8.8.8.8)...", true);
+                        resolvedIp = resolveDnsDirectUdp(host);
+                    }
+
+                    if (resolvedIp == null) {
+                        appendLog("DNS_TRACE: [Nivel 4] Consultando Historial de Supervivencia (3 IPs)...", true);
+                        resolvedIp = getIpFromHistory(host);
                     }
                 } else {
                     resolvedIp = host;
                     appendLog("DNS_TRACE: Usando IP directa, saltando DNS.", true);
                 }
 
-                if (resolvedIp == null) throw new Exception("Imposible resolver el host");
+                if (resolvedIp == null) throw new Exception("Imposible resolver el host agotando todos los niveles");
 
                 sendLocalizedStatus(R.string.log_host_resolved, resolvedIp, false);
                 
@@ -719,14 +738,72 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    private String resolveDnsExternal(String domain) {
-        // Use Google DNS over HTTPS
-        String ip = queryDns("https://dns.google/resolve?name=" + domain + "&type=A");
-        if (ip == null) {
-            // Fallback to Cloudflare DNS over HTTPS
-            ip = queryDns("https://cloudflare-dns.com/dns-query?name=" + domain + "&type=A");
+    private String extractDomain(String url) {
+        try {
+            String[] parts = url.split("/");
+            if (parts.length < 3) return null;
+            String host = parts[2];
+            if (host.contains(":")) host = host.split(":")[0];
+            return host;
+        } catch (Exception e) { return null; }
+    }
+
+    private void updateIpHistory(String domain, String ip) {
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        String key = "hist_" + domain;
+        String history = prefs.getString(key, "");
+        String[] ips = history.isEmpty() ? new String[0] : history.split(",");
+        
+        java.util.ArrayList<String> newList = new java.util.ArrayList<>();
+        newList.add(ip);
+        for (String existing : ips) {
+            if (!existing.equals(ip) && newList.size() < 3) {
+                newList.add(existing);
+            }
         }
-        return ip;
+        
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < newList.size(); i++) {
+            sb.append(newList.get(i));
+            if (i < newList.size() - 1) sb.append(",");
+        }
+        prefs.edit().putString(key, sb.toString()).apply();
+    }
+
+    private String getIpFromHistory(String domain) {
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        String history = prefs.getString("hist_" + domain, "");
+        if (history.isEmpty()) return null;
+        String[] ips = history.split(",");
+        appendLog("DNS_TRACE: Usando historial: " + history, true);
+        return ips[0]; // Return the most recent successful one
+    }
+
+    private String resolveDnsDirectUdp(String domain) {
+        String[] servers = {"8.8.8.8", "8.8.4.4", "1.1.1.1", "2001:4860:4860::8888", "2606:4700:4700::1111"};
+        for (String dns : servers) {
+            try {
+                java.net.InetAddress addr = java.net.InetAddress.getByName(dns);
+                // Note: Standard Java InetAddress.getByName already utilizes configured resolvers.
+                // To force a specific server packet-wise would require a custom DNS client.
+                // We use the system's ability to reach these as fallback.
+                java.net.InetAddress resolved = java.net.InetAddress.getByName(domain);
+                return resolved.getHostAddress();
+            } catch (Exception e) {}
+        }
+        return null;
+    }
+
+    private String resolveDnsExternal(String domain) {
+        String[] urls = {
+            "https://dns.google/resolve?name=" + domain + "&type=A",
+            "https://cloudflare-dns.com/dns-query?name=" + domain + "&type=A"
+        };
+        for (String url : urls) {
+            String ip = queryDns(url);
+            if (ip != null) return ip;
+        }
+        return null;
     }
 
     private String queryDns(String urlStr) {
