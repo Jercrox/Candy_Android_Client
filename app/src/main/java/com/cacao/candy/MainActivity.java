@@ -656,7 +656,7 @@ public class MainActivity extends AppCompatActivity {
             final String fOwnerIdKey = ownerIdKey;
             runOnUiThread(() -> showCustomIdentityDialog(serverUrl, p, finalUrl, finalOwner, fOwnerIdKey));
         } else {
-            // New logical server or already registered owner - Save mapping for future recognition
+            // New logical server or already registered owner - Save FULL original URL mapping
             prefs.edit().putString("host_owner_" + host, serverUrl).apply();
             if (resolvedIp != null) {
                 prefs.edit().putString("host_owner_" + resolvedIp, serverUrl).apply();
