@@ -17,6 +17,7 @@
         android:layout_marginBottom="16dp"/>
 
     <TextView
+        android:id="@+id/dialog_msg_prefix"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/identity_match_msg_prefix"

@@ -604,6 +604,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // 1. Direct/Resolved Host Match (Fast)
+        boolean isPatternMatch = false;
         String ownerUrl = prefs.getString("host_owner_" + host, "");
         if (ownerUrl.isEmpty() && resolvedIp != null) {
             ownerUrl = prefs.getString("host_owner_" + resolvedIp, "");
@@ -632,6 +633,7 @@ public class MainActivity extends AppCompatActivity {
                     String[] testUN = extractUserNet(testUrl);
                     if (testUN != null && currentUN[0].equals(testUN[0]) && currentUN[1].equals(testUN[1])) {
                         ownerUrl = testUrl;
+                        isPatternMatch = true;
                         appendLog("IDENTITY: PATRÓN_MATCH (Mismo Usuario/Red en nuevo host) -> " + ownerUrl, true);
                         break;
                     }
@@ -654,7 +656,8 @@ public class MainActivity extends AppCompatActivity {
         if (!ownerUrl.isEmpty() && unMatch && !ownerIdKey.equals(currentIdKey)) {
             final String finalOwner = ownerUrl;
             final String fOwnerIdKey = ownerIdKey;
-            runOnUiThread(() -> showCustomIdentityDialog(serverUrl, p, finalUrl, finalOwner, fOwnerIdKey));
+            final boolean fIsPattern = isPatternMatch;
+            runOnUiThread(() -> showCustomIdentityDialog(serverUrl, p, finalUrl, finalOwner, fOwnerIdKey, fIsPattern));
         } else {
             // New logical server or already registered owner - Save FULL original URL mapping
             prefs.edit().putString("host_owner_" + host, serverUrl).apply();
@@ -665,11 +668,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showCustomIdentityDialog(String serverUrl, String p, String finalUrl, String matchedUrl, String matchedIdKey) {
+    private void showCustomIdentityDialog(String serverUrl, String p, String finalUrl, String matchedUrl, String matchedIdKey, boolean isPattern) {
         android.app.Dialog dialog = new android.app.Dialog(this);
         dialog.setContentView(R.layout.dialog_identity_match);
         dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         dialog.setCancelable(false);
+
+        TextView txtPrefix = dialog.findViewById(R.id.dialog_msg_prefix);
+        if (txtPrefix != null) {
+            txtPrefix.setText(isPattern ? R.string.identity_match_msg_pattern_prefix : R.string.identity_match_msg_prefix);
+        }
 
         TextView txtMatch = dialog.findViewById(R.id.matched_url);
         txtMatch.setText(matchedUrl);
@@ -720,7 +728,7 @@ public class MainActivity extends AppCompatActivity {
                 launchVpnFinal(serverUrl, p, finalUrl, selectedIdKey);
             })
             .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
-                showCustomIdentityDialog(serverUrl, p, finalUrl, ownerArray[0], getIdentityKey(ownerArray[0]));
+                showCustomIdentityDialog(serverUrl, p, finalUrl, ownerArray[0], getIdentityKey(ownerArray[0]), false);
             })
             .show();
     }

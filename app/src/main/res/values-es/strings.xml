@@ -43,6 +43,7 @@
     <string name="msg_invalid_url">ERROR: Por favor ingrese una contraseña válida y verifique si la URL de Candy VPN es correcta y está bien escrita.</string>
     <string name="identity_match_title">Coincidencia de Identidad</string>
     <string name="identity_match_msg_prefix">El host de este servidor coincide con uno previo:</string>
+    <string name="identity_match_msg_pattern_prefix">Esta cuenta de servidor (Usuario/Red) coincide con una previa:</string>
     <string name="identity_match_msg_suffix">¿Deseas reutilizar la misma identidad para conservar tu IP asignada?</string>
     <string name="identity_match_yes">SÍ, PERSISTIR</string>
     <string name="identity_match_no">NO, NUEVA</string>

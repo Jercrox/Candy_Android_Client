@@ -43,6 +43,7 @@
     <string name="msg_invalid_url">ERROR: Please enter a valid password and verify if the Candy VPN URL is correct and well-written.</string>
     <string name="identity_match_title">Identity Match</string>
     <string name="identity_match_msg_prefix">This server host matches a previous one:</string>
+    <string name="identity_match_msg_pattern_prefix">This server account (User/Net) matches a previous one:</string>
     <string name="identity_match_msg_suffix">Do you want to reuse the same identity to preserve your assigned IP?</string>
     <string name="identity_match_yes">YES, PERSIST</string>
     <string name="identity_match_no">NO, NEW</string>
