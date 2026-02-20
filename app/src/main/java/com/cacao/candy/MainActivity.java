@@ -377,10 +377,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private String getIdentityKey(String url) {
-        if (url == null || url.isEmpty()) return "default";
-        // Use a simple hash or sanitized version of the URL as a key for preferences
-        return String.valueOf(url.hashCode());
+    private String getIdentityKey(String urlString) {
+        if (urlString == null || urlString.isEmpty()) return "default";
+        try {
+            String host = extractDomain(urlString);
+            String[] un = extractUserNet(urlString);
+            if (host != null && un != null) {
+                // Specialized Identity: Host + User + Net (Port and Protocol are ignored for identity)
+                return (host.toLowerCase() + "_" + un[0] + "_" + un[1]).replace(".", "_");
+            }
+        } catch (Exception e) {}
+        // Fallback to hash if URL is non-standard
+        return "hash_" + Math.abs(urlString.hashCode());
     }
 
     private void sendLocalizedStatus(int resId, Object arg, boolean isTechnical) {
@@ -606,16 +614,19 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Conditions to show the dialog: 
-        // 1. Host matches, User/Net matches, and it's a different URL string without its own identity.
-        if (!ownerUrl.isEmpty() && unMatch && !ownerUrl.equals(serverUrl) && prefs.getString("id_" + currentIdKey, "").isEmpty()) {
+        // 1. Host matches, User/Net matches, but they have different Identity Keys (due to different host interpretation)
+        // OR the URLs are literally different but the user hasn't explicitly linked them yet.
+        String ownerIdKey = ownerUrl.isEmpty() ? "" : getIdentityKey(ownerUrl);
+        
+        if (!ownerUrl.isEmpty() && unMatch && !ownerIdKey.equals(currentIdKey) && prefs.getString("id_" + currentIdKey, "").isEmpty()) {
             final String finalOwner = ownerUrl;
+            final String fOwnerIdKey = ownerIdKey;
             runOnUiThread(() -> {
                 new androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle(R.string.identity_match_title)
                     .setMessage(getString(R.string.identity_match_msg, finalOwner))
                     .setPositiveButton(R.string.identity_match_yes, (dialog, which) -> {
-                        String ownerIdKey = getIdentityKey(finalOwner);
-                        launchVpnFinal(serverUrl, p, finalUrl, ownerIdKey);
+                        launchVpnFinal(serverUrl, p, finalUrl, fOwnerIdKey);
                     })
                     .setNegativeButton(R.string.identity_match_no, (dialog, which) -> {
                         launchVpnFinal(serverUrl, p, finalUrl, null);
@@ -623,7 +634,8 @@ public class MainActivity extends AppCompatActivity {
                     .setCancelable(false)
                     .show();
             });
-        } else {
+        }
+ else {
             // No owner or no User/Net match -> Treat as new and set/keep owner if appropriate
             if (ownerUrl.isEmpty() || unMatch) {
                  prefs.edit().putString("host_owner_" + host, serverUrl).apply();
