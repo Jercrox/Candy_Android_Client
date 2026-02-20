@@ -650,19 +650,7 @@ public class MainActivity extends AppCompatActivity {
         if (!ownerUrl.isEmpty() && unMatch && !ownerIdKey.equals(currentIdKey)) {
             final String finalOwner = ownerUrl;
             final String fOwnerIdKey = ownerIdKey;
-            runOnUiThread(() -> {
-                new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(R.string.identity_match_title)
-                    .setMessage(getString(R.string.identity_match_msg, finalOwner))
-                    .setPositiveButton(R.string.identity_match_yes, (dialog, which) -> {
-                        launchVpnFinal(serverUrl, p, finalUrl, fOwnerIdKey);
-                    })
-                    .setNegativeButton(R.string.identity_match_no, (dialog, which) -> {
-                        launchVpnFinal(serverUrl, p, finalUrl, null);
-                    })
-                    .setCancelable(false)
-                    .show();
-            });
+            runOnUiThread(() -> showCustomIdentityDialog(serverUrl, p, finalUrl, finalOwner, fOwnerIdKey));
         } else {
             // New logical server or already registered owner
             prefs.edit().putString("host_owner_" + host, serverUrl).apply();
@@ -671,6 +659,66 @@ public class MainActivity extends AppCompatActivity {
             }
             launchVpnFinal(serverUrl, p, finalUrl, null);
         }
+    }
+
+    private void showCustomIdentityDialog(String serverUrl, String p, String finalUrl, String matchedUrl, String matchedIdKey) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.setContentView(R.layout.dialog_identity_match);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        dialog.setCancelable(false);
+
+        TextView txtMatch = dialog.findViewById(R.id.matched_url);
+        txtMatch.setText(matchedUrl);
+
+        dialog.findViewById(R.id.btn_choose_other).setOnClickListener(v -> {
+            dialog.dismiss();
+            showOtherIdentitiesSelector(serverUrl, p, finalUrl);
+        });
+
+        dialog.findViewById(R.id.btn_no_new).setOnClickListener(v -> {
+            dialog.dismiss();
+            launchVpnFinal(serverUrl, p, finalUrl, null);
+        });
+
+        dialog.findViewById(R.id.btn_yes_persist).setOnClickListener(v -> {
+            dialog.dismiss();
+            launchVpnFinal(serverUrl, p, finalUrl, matchedIdKey);
+        });
+
+        dialog.show();
+    }
+
+    private void showOtherIdentitiesSelector(String serverUrl, String p, String finalUrl) {
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        java.util.Map<String, ?> allEntries = prefs.getAll();
+        java.util.List<String> owners = new java.util.ArrayList<>();
+        
+        for (String key : allEntries.keySet()) {
+            if (key.startsWith("host_owner_")) {
+                String owner = (String) allEntries.get(key);
+                if (owner != null && !owner.isEmpty() && !owners.contains(owner)) {
+                    owners.add(owner);
+                }
+            }
+        }
+
+        if (owners.isEmpty()) {
+            launchVpnFinal(serverUrl, p, finalUrl, null);
+            return;
+        }
+
+        String[] ownerArray = owners.toArray(new String[0]);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.select_other_title)
+            .setItems(ownerArray, (dialog, which) -> {
+                String selectedOwner = ownerArray[which];
+                String selectedIdKey = getIdentityKey(selectedOwner);
+                launchVpnFinal(serverUrl, p, finalUrl, selectedIdKey);
+            })
+            .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
+                showCustomIdentityDialog(serverUrl, p, finalUrl, ownerArray[0], getIdentityKey(ownerArray[0]));
+            })
+            .show();
     }
 
     private String[] extractUserNet(String url) {

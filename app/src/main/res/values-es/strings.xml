@@ -42,7 +42,10 @@
     <string name="log_ip_assigned">NÚCLEO: IPv4 asignada -> %1$s</string>
     <string name="msg_invalid_url">ERROR: Por favor ingrese una contraseña válida y verifique si la URL de Candy VPN es correcta y está bien escrita.</string>
     <string name="identity_match_title">Coincidencia de Identidad</string>
-    <string name="identity_match_msg">El host de este servidor coincide con uno previo: \n\n%1$s\n\n¿Deseas reutilizar la misma identidad para conservar tu IP asignada?</string>
+    <string name="identity_match_msg_prefix">El host de este servidor coincide con uno previo:</string>
+    <string name="identity_match_msg_suffix">¿Deseas reutilizar la misma identidad para conservar tu IP asignada?</string>
     <string name="identity_match_yes">SÍ, PERSISTIR</string>
     <string name="identity_match_no">NO, NUEVA</string>
+    <string name="wrong_detection_tip">¿detección errónea? elige otra.</string>
+    <string name="select_other_title">Seleccionar origen de identidad</string>
 </resources>
