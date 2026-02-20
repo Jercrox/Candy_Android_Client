@@ -226,10 +226,16 @@ public class MainActivity extends AppCompatActivity {
                 
                 String protocol = parts[0]; // LUGAR_0: wss: o ws:
                 String domainAndPort = parts[2]; // LUGAR_2: dominio:puerto
+                
+                // Detailed trace of user/net parts
+                if (parts.length >= 5) {
+                    appendLog("DNS_TRACE: LUGAR_3 (Usuario) -> " + parts[3], true);
+                    appendLog("DNS_TRACE: LUGAR_4 (Red) -> " + parts[4], true);
+                }
 
                 // Check for WSS bypass
                 if (protocol.equalsIgnoreCase("wss:")) {
-                    appendLog("DNS_TRACE: Detectado 'wss://', omitiendo optimización de IP por compatibilidad Proxy.", true);
+                    appendLog("DNS_TRACE: Detectado 'wss://', bypass directo por compatibilidad TLS/Caddy.", true);
                     runOnUiThread(() -> {
                         btnConnect.setEnabled(true);
                         prepareVpn();
@@ -309,12 +315,6 @@ public class MainActivity extends AppCompatActivity {
 
         fetchIps(isWifiOrCable, () -> {
             runOnUiThread(() -> {
-                android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
-                String savedPass = prefs.getString("password", "");
-                if (!savedPass.isEmpty()) {
-                    editPassword.setText(savedPass);
-                    sendLocalizedStatus(R.string.log_pass_loaded, null, false);
-                }
                 if (onComplete != null) onComplete.run();
             });
         });
@@ -520,50 +520,58 @@ public class MainActivity extends AppCompatActivity {
             .putString("password", p)
             .putString("server", serverUrl)
             .apply();
-        if (resolvedIp != null && !serverUrl.isEmpty()) {
-            try {
-                int protocolEnd = serverUrl.indexOf("://");
-                String protocol = (protocolEnd != -1) ? serverUrl.substring(0, protocolEnd + 3) : "ws://";
-                String hostAndRest = (protocolEnd != -1) ? serverUrl.substring(protocolEnd + 3) : serverUrl;
-                String path = "";
-                if (hostAndRest.contains("/")) {
-                    path = hostAndRest.substring(hostAndRest.indexOf("/"));
-                    hostAndRest = hostAndRest.substring(0, hostAndRest.indexOf("/"));
-                }
-                String port = "";
-                if (hostAndRest.contains(":")) {
-                    port = hostAndRest.substring(hostAndRest.indexOf(":"));
-                }
-                String finalUrl = protocol + resolvedIp + port + path;
-                appendLog("DNS_TRACE: Conexión optimizada (URL con IP) -> " + finalUrl, true);
-                sendLocalizedStatus(R.string.log_optimized_conn, finalUrl, false);
-                
-                android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
-                String idKey = getIdentityKey(serverUrl); // Use the original URL for the key
-                String clientId = prefs.getString("id_" + idKey, "");
-                String vmac = prefs.getString("vmac_" + idKey, "");
-                
-                if (clientId.isEmpty() || vmac.isEmpty()) {
-                    clientId = UUID.randomUUID().toString().substring(0, 8);
-                    vmac = generateRandomHex(16);
-                    prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
-                    sendLocalizedStatus(R.string.log_identity_new, null, false);
-                } else {
-                    sendLocalizedStatus(R.string.log_identity_restore, null, false);
-                }
 
-                Intent i = new Intent(this, CandyVpnService.class);
-                i.putExtra("server", finalUrl);
-                i.putExtra("password", p);
-                i.putExtra("client_id", clientId);
-                i.putExtra("vmac", vmac);
-                startService(i);
-            } catch (Exception e) {
-                appendLog("DNS_TRACE: Error re-armando URL, usando original.");
+        try {
+            String[] parts = serverUrl.split("/");
+            if (parts.length < 5) {
+                // Not a standard user/net URL, use as is
                 startVpnWithOriginalUrl(serverUrl, p);
+                return;
             }
-        } else {
-             startVpnWithOriginalUrl(serverUrl, p);
+
+            String protocol = parts[0];
+            String domainAndPort = parts[2];
+            String user = parts[3];
+            String net = parts[4];
+            
+            String finalUrl;
+            if (resolvedIp != null && protocol.equalsIgnoreCase("ws:")) {
+                // Precise reconstruction: protocol + // + resolvedIp(:port) + /user/net
+                String hostPart = resolvedIp;
+                if (domainAndPort.contains(":")) {
+                    hostPart += domainAndPort.substring(domainAndPort.indexOf(":"));
+                }
+                finalUrl = protocol + "//" + hostPart + "/" + user + "/" + net;
+                appendLog("DNS_TRACE: Re-armado LUGAR_3+4 -> " + finalUrl, true);
+                sendLocalizedStatus(R.string.log_optimized_conn, finalUrl, false);
+            } else {
+                finalUrl = serverUrl;
+            }
+
+            android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            String idKey = getIdentityKey(serverUrl);
+            String clientId = prefs.getString("id_" + idKey, "");
+            String vmac = prefs.getString("vmac_" + idKey, "");
+            
+            if (clientId.isEmpty() || vmac.isEmpty()) {
+                clientId = UUID.randomUUID().toString().substring(0, 8);
+                vmac = generateRandomHex(16);
+                prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
+                sendLocalizedStatus(R.string.log_identity_new, null, false);
+            } else {
+                sendLocalizedStatus(R.string.log_identity_restore, null, false);
+            }
+
+            Intent i = new Intent(this, CandyVpnService.class);
+            i.putExtra("server", finalUrl);
+            i.putExtra("password", p);
+            i.putExtra("client_id", clientId);
+            i.putExtra("vmac", vmac);
+            startService(i);
+
+        } catch (Exception e) {
+            appendLog("DNS_TRACE: Error en reconstrucción LUGAR: " + e.getMessage());
+            startVpnWithOriginalUrl(serverUrl, p);
         }
 
         appendLog("CODE: [Start] CandyVpnService.init()");

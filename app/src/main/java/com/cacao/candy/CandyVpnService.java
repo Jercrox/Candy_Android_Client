@@ -151,7 +151,7 @@ public class CandyVpnService extends VpnService {
                         sendLocalizedStatus(R.string.log_handshake_ok, "Parse");
                         sendStatus("RESPONSE: [RECIBIDO] Protocolo Handshake -> " + config, "Parse");
 
-                        // FORMAT: IP:10.15.14.71|GW:10.15.14.1|PREFIX:24|NET:10.15.14.0
+                        // FORMAT: IP:X.X.X.X|GW:X.X.X.X|PREFIX:X|NET:X.X.X.X
                         String[] parts = config.split("\\|");
                         String assignedIP = parts[0].replace("IP:", "");
                         String gatewayIP  = parts[1].replace("GW:", "");
@@ -168,7 +168,7 @@ public class CandyVpnService extends VpnService {
 
                         sendStatus("CODE: VpnService.Builder builder = new Builder()", "Tun");
                         Builder builder = new Builder();
-                        builder.setMtu(1400); 
+                        builder.setMtu(1280); 
                         
                         builder.addAddress(assignedIP, prefixLength);
                         sendStatus("CODE: builder.addAddress(\"" + assignedIP + "\", " + prefixLength + ")", "Tun");
