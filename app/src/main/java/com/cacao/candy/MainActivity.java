@@ -620,15 +620,19 @@ public class MainActivity extends AppCompatActivity {
                     if (history.contains(resolvedIp)) {
                         String matchedDomain = key.substring(5);
                         ownerUrl = prefs.getString("host_owner_" + matchedDomain, "");
-                        if (!ownerUrl.isEmpty()) break;
+                        if (!ownerUrl.isEmpty()) {
+                            appendLog("IDENTITY: Coincidencia por historial de IP con: " + matchedDomain, true);
+                            break;
+                        }
                     }
                 }
-                // Check if User + Network pattern exists in any other host
+                // Check if User + Network pattern exists in any other host (Credentials Match)
                 if (key.startsWith("host_owner_")) {
                     String testUrl = (String) entry.getValue();
                     String[] testUN = extractUserNet(testUrl);
                     if (testUN != null && currentUN[0].equals(testUN[0]) && currentUN[1].equals(testUN[1])) {
                         ownerUrl = testUrl;
+                        appendLog("IDENTITY: PATRÓN_MATCH (Mismo Usuario/Red en nuevo host) -> " + ownerUrl, true);
                         break;
                     }
                 }
@@ -652,7 +656,7 @@ public class MainActivity extends AppCompatActivity {
             final String fOwnerIdKey = ownerIdKey;
             runOnUiThread(() -> showCustomIdentityDialog(serverUrl, p, finalUrl, finalOwner, fOwnerIdKey));
         } else {
-            // New logical server or already registered owner
+            // New logical server or already registered owner - Save mapping for future recognition
             prefs.edit().putString("host_owner_" + host, serverUrl).apply();
             if (resolvedIp != null) {
                 prefs.edit().putString("host_owner_" + resolvedIp, serverUrl).apply();
