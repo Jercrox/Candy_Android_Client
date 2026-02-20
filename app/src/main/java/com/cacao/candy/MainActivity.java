@@ -705,11 +705,16 @@ public class MainActivity extends AppCompatActivity {
         java.util.Map<String, ?> allEntries = prefs.getAll();
         java.util.List<String> owners = new java.util.ArrayList<>();
         
+        // Comprehensive identity search: Get every URL that has a stored ClientId
         for (String key : allEntries.keySet()) {
             if (key.startsWith("host_owner_")) {
                 String owner = (String) allEntries.get(key);
-                if (owner != null && !owner.isEmpty() && !owners.contains(owner)) {
-                    owners.add(owner);
+                if (owner != null && !owner.isEmpty()) {
+                    // Also check if this URL actually has an identity record
+                    String idKey = getIdentityKey(owner);
+                    if (!prefs.getString("id_" + idKey, "").isEmpty() && !owners.contains(owner)) {
+                        owners.add(owner);
+                    }
                 }
             }
         }
