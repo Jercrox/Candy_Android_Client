@@ -10,7 +10,7 @@
     <string name="copy">COPIAR</string>
     <string name="expand">AMPLIAR</string>
     <string name="reduce">REDUCIR</string>
-    <string name="server_hint">ws://Domain_or_ip:port/User/Netname</string>
+    <string name="server_hint">ws://Dominio_o_ip:puerto/User/Red (solo ws, wss no soportado.)</string>
     <string name="password_hint">Password</string>
     <string name="connecting">Conectando...</string>
     <string name="resolving">RESOLVIENDO...</string>

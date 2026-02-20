@@ -32,6 +32,15 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.URL;
+import java.util.Collections;
+import java.util.List;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
@@ -217,6 +226,10 @@ public class MainActivity extends AppCompatActivity {
                 int colonIndex = host.indexOf(":");
                 if (colonIndex != -1) host = host.substring(0, colonIndex);
 
+                // Identify if it's a domain or an IP address
+                boolean isIp = host.matches("\\d+\\.\\d+\\.\\d+\\.\\d+");
+                appendLog("DNS_TRACE: Identificado como " + (isIp ? "dirección IP" : "dominio") + ": " + host, true);
+
                 appendLog("DNS_TRACE: Resolviendo host '" + host + "'...", true);
                 sendLocalizedStatus(R.string.log_resolving_host, host, false);
                 
@@ -260,6 +273,10 @@ public class MainActivity extends AppCompatActivity {
                 sendLocalizedStatus(R.string.log_net_info, net.getTypeName(), net.getDetailedState());
             }
         }
+
+        // Display IPs during trace
+        appendLog("NET_INFO: Local IP: " + getLocalIpAddress());
+        fetchPublicIp();
 
         android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         String savedPass = prefs.getString("password", "");
@@ -616,5 +633,40 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return super.dispatchTouchEvent(event);
+    }
+    private String getLocalIpAddress() {
+        try {
+            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            for (NetworkInterface intf : interfaces) {
+                List<InetAddress> addrs = Collections.list(intf.getInetAddresses());
+                for (InetAddress addr : addrs) {
+                    if (!addr.isLoopbackAddress()) {
+                        String sAddr = addr.getHostAddress();
+                        boolean isIPv4 = sAddr.indexOf(':') < 0;
+                        if (isIPv4) return sAddr;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return "127.0.0.1";
+    }
+
+    private void fetchPublicIp() {
+        new Thread(() -> {
+            try {
+                URL url = new URL("https://api.ipify.org");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                String publicIp = reader.readLine();
+                reader.close();
+                appendLog("NET_INFO: Public IP: " + publicIp);
+            } catch (Exception e) {
+                appendLog("NET_INFO: Public IP: (Oculto o No Disponible)");
+            }
+        }).start();
     }
 }

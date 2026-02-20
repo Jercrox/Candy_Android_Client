@@ -14,3 +14,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+/ROTO/
+/build_error.txt
+/build_log.txt
+/build_output.txt
