@@ -581,28 +581,40 @@ public class MainActivity extends AppCompatActivity {
     private void checkIdentityHost(String serverUrl, String p, String finalUrl) {
         android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         String host = extractDomain(serverUrl);
-        if (host == null || host.isEmpty()) {
+        String[] currentUN = extractUserNet(serverUrl);
+        
+        if (host == null || host.isEmpty() || currentUN == null) {
             launchVpnFinal(serverUrl, p, finalUrl, null);
             return;
         }
 
+        // Search for a matching host (can be the domain name or the resolved IP)
         String ownerUrl = prefs.getString("host_owner_" + host, "");
+        if (ownerUrl.isEmpty() && resolvedIp != null) {
+            ownerUrl = prefs.getString("host_owner_" + resolvedIp, "");
+        }
+
         String currentIdKey = getIdentityKey(serverUrl);
         
-        // If we haven't seen this host OR this URL is already the owner OR it already has an identity
-        if (ownerUrl.isEmpty() || ownerUrl.equals(serverUrl) || !prefs.getString("id_" + currentIdKey, "").isEmpty()) {
-            if (ownerUrl.isEmpty()) {
-                prefs.edit().putString("host_owner_" + host, serverUrl).apply();
+        // If host match found, check if User and Net (LUGAR 3 & 4) also match
+        boolean unMatch = false;
+        if (!ownerUrl.isEmpty()) {
+            String[] ownerUN = extractUserNet(ownerUrl);
+            if (ownerUN != null && currentUN[0].equals(ownerUN[0]) && currentUN[1].equals(ownerUN[1])) {
+                unMatch = true;
             }
-            launchVpnFinal(serverUrl, p, finalUrl, null);
-        } else {
-            // Found a potential match with a different URL string
+        }
+
+        // Conditions to show the dialog: 
+        // 1. Host matches, User/Net matches, and it's a different URL string without its own identity.
+        if (!ownerUrl.isEmpty() && unMatch && !ownerUrl.equals(serverUrl) && prefs.getString("id_" + currentIdKey, "").isEmpty()) {
+            final String finalOwner = ownerUrl;
             runOnUiThread(() -> {
                 new androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle(R.string.identity_match_title)
-                    .setMessage(getString(R.string.identity_match_msg, ownerUrl))
+                    .setMessage(getString(R.string.identity_match_msg, finalOwner))
                     .setPositiveButton(R.string.identity_match_yes, (dialog, which) -> {
-                        String ownerIdKey = getIdentityKey(ownerUrl);
+                        String ownerIdKey = getIdentityKey(finalOwner);
                         launchVpnFinal(serverUrl, p, finalUrl, ownerIdKey);
                     })
                     .setNegativeButton(R.string.identity_match_no, (dialog, which) -> {
@@ -611,7 +623,26 @@ public class MainActivity extends AppCompatActivity {
                     .setCancelable(false)
                     .show();
             });
+        } else {
+            // No owner or no User/Net match -> Treat as new and set/keep owner if appropriate
+            if (ownerUrl.isEmpty() || unMatch) {
+                 prefs.edit().putString("host_owner_" + host, serverUrl).apply();
+                 if (resolvedIp != null) {
+                     prefs.edit().putString("host_owner_" + resolvedIp, serverUrl).apply();
+                 }
+            }
+            launchVpnFinal(serverUrl, p, finalUrl, null);
         }
+    }
+
+    private String[] extractUserNet(String url) {
+        try {
+            String[] parts = url.split("/");
+            if (parts.length >= 5) {
+                return new String[]{parts[3], parts[4]}; // User, Net
+            }
+        } catch (Exception e) {}
+        return null;
     }
 
     private void launchVpnFinal(String serverUrl, String p, String finalUrl, String copyFromIdKey) {
