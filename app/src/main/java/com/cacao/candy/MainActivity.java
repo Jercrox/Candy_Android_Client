@@ -544,7 +544,7 @@ public class MainActivity extends AppCompatActivity {
             String[] parts = serverUrl.split("/");
             if (parts.length < 5) {
                 // Not a standard user/net URL, use as is
-                startVpnWithOriginalUrl(serverUrl, p);
+                checkIdentityHost(serverUrl, p, serverUrl);
                 return;
             }
 
@@ -555,7 +555,6 @@ public class MainActivity extends AppCompatActivity {
             
             String finalUrl;
             if (resolvedIp != null && protocol.equalsIgnoreCase("ws:")) {
-                // Precise reconstruction: protocol + // + resolvedIp(:port) + /user/net
                 String hostPart = resolvedIp;
                 if (domainAndPort.contains(":")) {
                     hostPart += domainAndPort.substring(domainAndPort.indexOf(":"));
@@ -567,30 +566,11 @@ public class MainActivity extends AppCompatActivity {
                 finalUrl = serverUrl;
             }
 
-            android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
-            String idKey = getIdentityKey(serverUrl);
-            String clientId = prefs.getString("id_" + idKey, "");
-            String vmac = prefs.getString("vmac_" + idKey, "");
-            
-            if (clientId.isEmpty() || vmac.isEmpty()) {
-                clientId = UUID.randomUUID().toString().substring(0, 8);
-                vmac = generateRandomHex(16);
-                prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
-                sendLocalizedStatus(R.string.log_identity_new, null, false);
-            } else {
-                sendLocalizedStatus(R.string.log_identity_restore, null, false);
-            }
-
-            Intent i = new Intent(this, CandyVpnService.class);
-            i.putExtra("server", finalUrl);
-            i.putExtra("password", p);
-            i.putExtra("client_id", clientId);
-            i.putExtra("vmac", vmac);
-            startService(i);
+            checkIdentityHost(serverUrl, p, finalUrl);
 
         } catch (Exception e) {
             appendLog("DNS_TRACE: Error en reconstrucción LUGAR: " + e.getMessage());
-            startVpnWithOriginalUrl(serverUrl, p);
+            checkIdentityHost(serverUrl, p, serverUrl);
         }
 
         appendLog("CODE: [Start] CandyVpnService.init()");
@@ -598,25 +578,77 @@ public class MainActivity extends AppCompatActivity {
         updateUI();
     }
 
-    private void startVpnWithOriginalUrl(String serverUrl, String p) {
+    private void checkIdentityHost(String serverUrl, String p, String finalUrl) {
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        String host = extractDomain(serverUrl);
+        if (host == null || host.isEmpty()) {
+            launchVpnFinal(serverUrl, p, finalUrl, null);
+            return;
+        }
+
+        String ownerUrl = prefs.getString("host_owner_" + host, "");
+        String currentIdKey = getIdentityKey(serverUrl);
+        
+        // If we haven't seen this host OR this URL is already the owner OR it already has an identity
+        if (ownerUrl.isEmpty() || ownerUrl.equals(serverUrl) || !prefs.getString("id_" + currentIdKey, "").isEmpty()) {
+            if (ownerUrl.isEmpty()) {
+                prefs.edit().putString("host_owner_" + host, serverUrl).apply();
+            }
+            launchVpnFinal(serverUrl, p, finalUrl, null);
+        } else {
+            // Found a potential match with a different URL string
+            runOnUiThread(() -> {
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.identity_match_title)
+                    .setMessage(getString(R.string.identity_match_msg, ownerUrl))
+                    .setPositiveButton(R.string.identity_match_yes, (dialog, which) -> {
+                        String ownerIdKey = getIdentityKey(ownerUrl);
+                        launchVpnFinal(serverUrl, p, finalUrl, ownerIdKey);
+                    })
+                    .setNegativeButton(R.string.identity_match_no, (dialog, which) -> {
+                        launchVpnFinal(serverUrl, p, finalUrl, null);
+                    })
+                    .setCancelable(false)
+                    .show();
+            });
+        }
+    }
+
+    private void launchVpnFinal(String serverUrl, String p, String finalUrl, String copyFromIdKey) {
         android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         String idKey = getIdentityKey(serverUrl);
+        
         String clientId = prefs.getString("id_" + idKey, "");
         String vmac = prefs.getString("vmac_" + idKey, "");
-
+        
         if (clientId.isEmpty() || vmac.isEmpty()) {
-            clientId = UUID.randomUUID().toString().substring(0, 8);
-            vmac = generateRandomHex(16);
+            if (copyFromIdKey != null) {
+                clientId = prefs.getString("id_" + copyFromIdKey, "");
+                vmac = prefs.getString("vmac_" + copyFromIdKey, "");
+                appendLog("IDENTITY: Enlazando identidad existente para persistencia IP.", true);
+            }
+            
+            // Re-check just in case copy failed or was null
+            if (clientId.isEmpty() || vmac.isEmpty()) {
+                clientId = UUID.randomUUID().toString().substring(0, 8);
+                vmac = generateRandomHex(16);
+                sendLocalizedStatus(R.string.log_identity_new, null, false);
+            } else {
+                sendLocalizedStatus(R.string.log_identity_restore, null, false);
+            }
             prefs.edit().putString("id_" + idKey, clientId).putString("vmac_" + idKey, vmac).apply();
+        } else {
+            sendLocalizedStatus(R.string.log_identity_restore, null, false);
         }
 
         Intent i = new Intent(this, CandyVpnService.class);
-        i.putExtra("server", serverUrl);
+        i.putExtra("server", finalUrl);
         i.putExtra("password", p);
         i.putExtra("client_id", clientId);
         i.putExtra("vmac", vmac);
         startService(i);
     }
+
 
     private void stopVpnService() {
         appendLog("CODE: [Stop] CandyVpnService.terminate()");

@@ -41,4 +41,8 @@
     <string name="log_vmac_info">CORE: VMAC set to %1$s</string>
     <string name="log_ip_assigned">CORE: Assigned IPv4 -> %1$s</string>
     <string name="msg_invalid_url">ERROR: Please enter a valid password and verify if the Candy VPN URL is correct and well-written.</string>
+    <string name="identity_match_title">Identity Match</string>
+    <string name="identity_match_msg">This server host matches a previous one: \n\n%1$s\n\nDo you want to reuse the same identity to preserve your assigned IP?</string>
+    <string name="identity_match_yes">YES, PERSIST</string>
+    <string name="identity_match_no">NO, NEW</string>
 </resources>
