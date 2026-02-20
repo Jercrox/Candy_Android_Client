@@ -596,15 +596,46 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Search for a matching host (can be the domain name or the resolved IP)
+        String currentIdKey = getIdentityKey(serverUrl);
+        // If this exact URL already has a generated identity, just use it directly
+        if (!prefs.getString("id_" + currentIdKey, "").isEmpty()) {
+            launchVpnFinal(serverUrl, p, finalUrl, null);
+            return;
+        }
+
+        // 1. Direct/Resolved Host Match (Fast)
         String ownerUrl = prefs.getString("host_owner_" + host, "");
         if (ownerUrl.isEmpty() && resolvedIp != null) {
             ownerUrl = prefs.getString("host_owner_" + resolvedIp, "");
         }
 
-        String currentIdKey = getIdentityKey(serverUrl);
-        
-        // If host match found, check if User and Net (LUGAR 3 & 4) also match
+        // 2. Deep Identity Search: Iterate through all known servers to find a fingerprint match
+        if (ownerUrl.isEmpty()) {
+            java.util.Map<String, ?> allEntries = prefs.getAll();
+            for (java.util.Map.Entry<String, ?> entry : allEntries.entrySet()) {
+                String key = entry.getKey();
+                // Check if current resolved IP exists in the IP history of any previously seen domain
+                if (key.startsWith("hist_") && resolvedIp != null) {
+                    String history = (String) entry.getValue();
+                    if (history.contains(resolvedIp)) {
+                        String matchedDomain = key.substring(5);
+                        ownerUrl = prefs.getString("host_owner_" + matchedDomain, "");
+                        if (!ownerUrl.isEmpty()) break;
+                    }
+                }
+                // Check if User + Network pattern exists in any other host
+                if (key.startsWith("host_owner_")) {
+                    String testUrl = (String) entry.getValue();
+                    String[] testUN = extractUserNet(testUrl);
+                    if (testUN != null && currentUN[0].equals(testUN[0]) && currentUN[1].equals(testUN[1])) {
+                        ownerUrl = testUrl;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Validate found match against User/Net requirements
         boolean unMatch = false;
         if (!ownerUrl.isEmpty()) {
             String[] ownerUN = extractUserNet(ownerUrl);
@@ -613,12 +644,10 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // Conditions to show the dialog: 
-        // 1. Host matches, User/Net matches, but they have different Identity Keys (due to different host interpretation)
-        // OR the URLs are literally different but the user hasn't explicitly linked them yet.
         String ownerIdKey = ownerUrl.isEmpty() ? "" : getIdentityKey(ownerUrl);
         
-        if (!ownerUrl.isEmpty() && unMatch && !ownerIdKey.equals(currentIdKey) && prefs.getString("id_" + currentIdKey, "").isEmpty()) {
+        // Final Decision: Prompt if a logical match is found but under a different URL/Host record
+        if (!ownerUrl.isEmpty() && unMatch && !ownerIdKey.equals(currentIdKey)) {
             final String finalOwner = ownerUrl;
             final String fOwnerIdKey = ownerIdKey;
             runOnUiThread(() -> {
@@ -634,14 +663,11 @@ public class MainActivity extends AppCompatActivity {
                     .setCancelable(false)
                     .show();
             });
-        }
- else {
-            // No owner or no User/Net match -> Treat as new and set/keep owner if appropriate
-            if (ownerUrl.isEmpty() || unMatch) {
-                 prefs.edit().putString("host_owner_" + host, serverUrl).apply();
-                 if (resolvedIp != null) {
-                     prefs.edit().putString("host_owner_" + resolvedIp, serverUrl).apply();
-                 }
+        } else {
+            // New logical server or already registered owner
+            prefs.edit().putString("host_owner_" + host, serverUrl).apply();
+            if (resolvedIp != null) {
+                prefs.edit().putString("host_owner_" + resolvedIp, serverUrl).apply();
             }
             launchVpnFinal(serverUrl, p, finalUrl, null);
         }
