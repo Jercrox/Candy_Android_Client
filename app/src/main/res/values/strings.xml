@@ -29,7 +29,7 @@
     <string name="log_handshake_fail">CORE: Handshake failed. Retrying...</string>
     <string name="log_identity_update">CORE: Identity updated. Ready for connection.</string>
     <string name="log_cleaning_tun">SYSTEM: Cleaning previous network interfaces.</string>
-    <string name="log_trace_header">--- CANDY VPN NATIVE CLONE v52 ---</string>
+    <string name="log_trace_header">-- CANDY ANDROID CLIENT --</string>
     <string name="log_os_info">OS_INFO: Android %1$s (API %2$d)</string>
     <string name="log_kernel_info">OS_INFO: Arch=%1$s | Kernel=%2$s</string>
     <string name="log_net_info">NET_INFO: %1$s (%2$s)</string>

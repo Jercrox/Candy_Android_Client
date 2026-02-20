@@ -213,35 +213,65 @@ public class MainActivity extends AppCompatActivity {
         
         btnConnect.setEnabled(false);
         btnConnect.setText(R.string.resolving);
+        resolvedIp = null; // Reset to ensure no old IP is leaked
 
         new Thread(() -> {
             try {
-                String host = urlString;
-                String lowerUrl = urlString.toLowerCase();
-                if (lowerUrl.startsWith("ws://")) host = urlString.substring(5);
-                else if (lowerUrl.startsWith("wss://")) host = urlString.substring(6);
+                // 1. Precise Parsing using the Split Plan
+                appendLog("DNS_TRACE: Iniciando limpieza y análisis de URL...", true);
                 
-                int slashIndex = host.indexOf("/");
-                if (slashIndex != -1) host = host.substring(0, slashIndex);
-                int colonIndex = host.indexOf(":");
-                if (colonIndex != -1) host = host.substring(0, colonIndex);
+                String[] parts = urlString.split("/");
+                // Expected: [0]protocol, [1]empty, [2]host:port, [3]user, [4]net
+                if (parts.length < 3) throw new Exception("Formato de URL inválido (faltan partes)");
+                
+                String protocol = parts[0]; // LUGAR_0: wss: o ws:
+                String domainAndPort = parts[2]; // LUGAR_2: dominio:puerto
 
-                // Identify if it's a domain or an IP address
+                // Check for WSS bypass
+                if (protocol.equalsIgnoreCase("wss:")) {
+                    appendLog("DNS_TRACE: Detectado 'wss://', omitiendo optimización de IP por compatibilidad Proxy.", true);
+                    runOnUiThread(() -> {
+                        btnConnect.setEnabled(true);
+                        prepareVpn();
+                    });
+                    return;
+                }
+
+                String host;
+                if (domainAndPort.contains(":")) {
+                    String[] subparts = domainAndPort.split(":");
+                    host = subparts[0]; // LUGAR_0: dominio o IP
+                } else {
+                    host = domainAndPort; // Ya es el dominio o IP
+                }
+
+                // 2. Identify Host Type
                 boolean isIp = host.matches("\\d+\\.\\d+\\.\\d+\\.\\d+");
-                appendLog("DNS_TRACE: Identificado como " + (isIp ? "dirección IP" : "dominio") + ": " + host, true);
+                appendLog("DNS_TRACE: Host extraído -> " + host, true);
+                appendLog("DNS_TRACE: Tipo -> " + (isIp ? "Dirección IP" : "Dominio"), true);
 
-                appendLog("DNS_TRACE: Resolviendo host '" + host + "'...", true);
-                sendLocalizedStatus(R.string.log_resolving_host, host, false);
-                
-                java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
-                if (addresses.length > 0) {
-                    resolvedIp = addresses[0].getHostAddress();
-                    sendLocalizedStatus(R.string.log_host_resolved, resolvedIp, false);
+                if (!isIp) {
+                    appendLog("DNS_TRACE: Consultando servidores DNS externos (Google/Cloudflare)...", true);
+                    String externalResolved = resolveDnsExternal(host);
+                    if (externalResolved != null) {
+                        resolvedIp = externalResolved;
+                        appendLog("DNS_TRACE: Resolución externa (DoH) exitosa -> " + resolvedIp, true);
+                    } else {
+                        appendLog("DNS_TRACE: Servidores externos no responden, usando sistema local...", true);
+                        java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
+                        if (addresses.length > 0) {
+                            resolvedIp = addresses[0].getHostAddress();
+                            appendLog("DNS_TRACE: Resolución sistema local -> " + resolvedIp, true);
+                        }
+                    }
+                } else {
+                    resolvedIp = host;
+                    appendLog("DNS_TRACE: Usando IP directa, saltando DNS.", true);
                 }
-                
-                for (java.net.InetAddress addr : addresses) {
-                    appendLog("DNS_TRACE: Host '" + host + "' apunta a IP: " + addr.getHostAddress(), true);
-                }
+
+                if (resolvedIp == null) throw new Exception("Imposible resolver el host");
+
+                sendLocalizedStatus(R.string.log_host_resolved, resolvedIp, false);
                 
                 runOnUiThread(() -> {
                     btnConnect.setEnabled(true);
@@ -249,7 +279,7 @@ public class MainActivity extends AppCompatActivity {
                 });
                 
             } catch (Exception e) {
-                appendLog("DNS_TRACE: Error de resolución: " + e.getMessage(), true);
+                appendLog("DNS_TRACE: Falla crítica: " + e.getMessage(), true);
                 sendLocalizedStatus(R.string.log_dns_error, e.getMessage(), false);
                 runOnUiThread(() -> {
                      btnConnect.setEnabled(true);
@@ -260,30 +290,34 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void runInitialTrace() {
+    private void runInitialTrace(Runnable onComplete) {
         textViewLog.setText("");
-        sendLocalizedStatus(R.string.log_trace_header, null, false);
+        appendLog(getString(R.string.log_trace_header), false, false);
         sendLocalizedStatus(R.string.log_os_info, Build.VERSION.RELEASE, Build.VERSION.SDK_INT);
         sendLocalizedStatus(R.string.log_kernel_info, Build.CPU_ABI, System.getProperty("os.version"));
         
+        boolean isWifiOrCable = false;
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm != null) {
             NetworkInfo net = cm.getActiveNetworkInfo();
             if (net != null) {
                 sendLocalizedStatus(R.string.log_net_info, net.getTypeName(), net.getDetailedState());
+                int type = net.getType();
+                isWifiOrCable = (type == ConnectivityManager.TYPE_WIFI || type == ConnectivityManager.TYPE_ETHERNET);
             }
         }
 
-        // Display IPs during trace
-        appendLog("NET_INFO: Local IP: " + getLocalIpAddress());
-        fetchPublicIp();
-
-        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
-        String savedPass = prefs.getString("password", "");
-        if (!savedPass.isEmpty()) {
-            editPassword.setText(savedPass);
-            sendLocalizedStatus(R.string.log_pass_loaded, null, false);
-        }
+        fetchIps(isWifiOrCable, () -> {
+            runOnUiThread(() -> {
+                android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+                String savedPass = prefs.getString("password", "");
+                if (!savedPass.isEmpty()) {
+                    editPassword.setText(savedPass);
+                    sendLocalizedStatus(R.string.log_pass_loaded, null, false);
+                }
+                if (onComplete != null) onComplete.run();
+            });
+        });
     }
 
     private void initViews() {
@@ -372,18 +406,14 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-                // Clear old session logs when starting a new connection
-                getPreferences(MODE_PRIVATE).edit()
-                    .remove("session_log")
-                    .remove("internal_log")
-                    .remove("session_ip")
-                    .apply();
-                textViewLog.setText("");
-                resolvedIp = null; // Reset IP to avoid using old one from previous attempts
-                runInitialTrace();
-                appendLog("ACTION: Iniciando secuencia de conexión...", true);
-                sendLocalizedStatus(R.string.log_connecting, null, false);
-                resolveAndConnect();
+                // Start connection sequence after initial trace and IP discovery
+                runInitialTrace(() -> {
+                    runOnUiThread(() -> {
+                        appendLog("ACTION: Iniciando secuencia de conexión...", true);
+                        sendLocalizedStatus(R.string.log_connecting, null, false);
+                        resolveAndConnect();
+                    });
+                });
             }
         });
         btnCopyLog.setOnClickListener(v -> {
@@ -436,14 +466,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void appendLog(String message) {
-        appendLog(message, false);
+        appendLog(message, false, true);
     }
 
     private void appendLog(String message, boolean isTechnical) {
+        appendLog(message, isTechnical, true);
+    }
+
+    private void appendLog(String message, boolean isTechnical, boolean showTime) {
         runOnUiThread(() -> {
             if (textViewLog == null) return;
-            String timePrefix = "[" + dateFormat.format(new Date()) + "] ";
-            String entry = "\n" + timePrefix + message;
+            String timePrefix = showTime ? "[" + dateFormat.format(new Date()) + "] " : "";
+            String currentText = textViewLog.getText().toString();
+            String entry = (currentText.isEmpty() ? "" : "\n") + timePrefix + message;
             
             // Save to internal technical log always
             String internalLog = getPreferences(MODE_PRIVATE).getString("internal_log", "");
@@ -653,20 +688,64 @@ public class MainActivity extends AppCompatActivity {
         return "127.0.0.1";
     }
 
-    private void fetchPublicIp() {
+    private void fetchIps(boolean includeLocal, Runnable onComplete) {
         new Thread(() -> {
+            String publicIp;
             try {
                 URL url = new URL("https://api.ipify.org");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                String publicIp = reader.readLine();
+                publicIp = reader.readLine();
                 reader.close();
-                appendLog("NET_INFO: Public IP: " + publicIp);
             } catch (Exception e) {
-                appendLog("NET_INFO: Public IP: (Oculto o No Disponible)");
+                publicIp = "(Oculto o No Disponible)";
             }
+            
+            appendLog("NET_INFO: Public IP: " + publicIp);
+            if (includeLocal) {
+                appendLog("NET_INFO: Local IP: " + getLocalIpAddress());
+            }
+            if (onComplete != null) onComplete.run();
         }).start();
+    }
+
+    private String resolveDnsExternal(String domain) {
+        // Use Google DNS over HTTPS
+        String ip = queryDns("https://dns.google/resolve?name=" + domain + "&type=A");
+        if (ip == null) {
+            // Fallback to Cloudflare DNS over HTTPS
+            ip = queryDns("https://cloudflare-dns.com/dns-query?name=" + domain + "&type=A");
+        }
+        return ip;
+    }
+
+    private String queryDns(String urlStr) {
+        try {
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line);
+            reader.close();
+            
+            String response = sb.toString();
+            // Basic extraction from JSON response for the A record data
+            int dataIdx = response.indexOf("\"data\":\"");
+            if (dataIdx != -1) {
+                int start = dataIdx + 8;
+                int end = response.indexOf("\"", start);
+                String foundIp = response.substring(start, end);
+                if (foundIp.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) return foundIp;
+            }
+        } catch (Exception e) {
+            // Ignore and try fallback
+        }
+        return null;
     }
 }
