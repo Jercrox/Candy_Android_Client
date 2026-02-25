@@ -106,7 +106,7 @@ public class CandyVpnService extends VpnService {
             String identityHost = android.os.Build.MODEL + "_" + clientId;
             Candy_mobile.setSystemInfo(
                     "android",    // info[1] -> OS
-                    "v52.2-stable", // info[2] -> Version
+                    "v52.3-stable", // info[2] -> Version
                     identityHost  // info[3] -> Hostname (unique per client instance)
             );
             sendLocalizedStatus(R.string.log_identity_update, "Identity");

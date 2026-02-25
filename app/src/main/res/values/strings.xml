@@ -6,7 +6,7 @@
     <string name="disconnected">Disconnected.</string>
     <string name="operational">Connected.</string>
     <string name="ip_label">"IP: "</string>
-    <string name="technical_log">TECHNICAL LOG V52.2</string>
+    <string name="technical_log">TECHNICAL LOG V52.3</string>
     <string name="copy">COPY</string>
     <string name="expand">EXPAND</string>
     <string name="reduce">REDUCE</string>
@@ -49,4 +49,16 @@
     <string name="identity_match_no">NO, NEW</string>
     <string name="wrong_detection_tip">¿wrong detection? choose other.</string>
     <string name="select_other_title">Select Identity Source</string>
+    <string name="settings_title">Settings</string>
+    <string name="proxy_label">Proxy (optional)</string>
+    <string name="proxy_hint">socks5://ip:port</string>
+    <string name="save">SAVE</string>
+    <string name="proxy_status_label">Proxy Status: </string>
+    <string name="proxy_connected">Connected</string>
+    <string name="proxy_disconnected">Disconnected</string>
+    <string name="disconnect_proxy">DISCONNECT</string>
+    <string name="settings_ask_proxy">Ask me if I want to use this proxy</string>
+    <string name="msg_proxy_detected">A proxy was detected at %1$s. Do you want to use it?</string>
+    <string name="use_proxy_yes">USE PROXY</string>
+    <string name="use_proxy_no">DIRECT CONNECTION</string>
 </resources>

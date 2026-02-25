@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/lunixbochs/struc"
+	"golang.org/x/net/proxy"
 )
 
 // Protocol Constants
@@ -43,12 +46,13 @@ var (
 	lastConfig   string
 
 	candyOS       = "android"
-	candyVersion  = "v52.2-stable"
+	candyVersion  = "v52.3-stable"
 	candyHostname = "android-device"
 
 	globalVMac    string
 	logger        LogListener
 	stopHeartbeat chan struct{}
+	proxyUrl      string
 )
 
 func init() {
@@ -132,6 +136,10 @@ func SetSystemInfo(osName, version, hostname string) {
 	}
 }
 
+func SetProxy(url string) {
+	proxyUrl = url
+}
+
 func logToMobile(msg string) {
 	if logger != nil {
 		logger.OnLog(msg)
@@ -184,8 +192,36 @@ func RequestIP(serverUrl string) (string, error) {
 		return "", err
 	}
 
-	dialer := websocket.DefaultDialer
-	dialer.HandshakeTimeout = 15 * time.Second
+	dialer := &websocket.Dialer{
+		HandshakeTimeout: 15 * time.Second,
+	}
+
+	// SSL/TLS Force Bypass for WSS (Required for self-signed certificates in China/1Panel)
+	if strings.HasPrefix(strings.ToLower(serverUrl), "wss://") {
+		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		logToMobile("TLS: InsecureSkipVerify FORCED (Bypassing 1Panel/Self-Signed check)")
+	}
+
+	if proxyUrl != "" {
+		pu, err := url.Parse(proxyUrl)
+		if err == nil {
+			scheme := strings.ToLower(pu.Scheme)
+			if scheme == "socks5" || scheme == "socks5h" {
+				logToMobile("PROXY: Using SOCKS5 proxy (Remote DNS) -> " + proxyUrl)
+				pd, err := proxy.SOCKS5("tcp", pu.Host, nil, proxy.Direct)
+				if err == nil {
+					dialer.NetDial = pd.Dial
+				} else {
+					logToMobile("PROXY_ERR: SOCKS5 Dial setup failed: " + err.Error())
+				}
+			} else {
+				dialer.Proxy = http.ProxyURL(pu)
+				logToMobile("PROXY: Using HTTP proxy -> " + proxyUrl)
+			}
+		} else {
+			logToMobile("PROXY_ERR: Invalid proxy URL -> " + proxyUrl)
+		}
+	}
 	c, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("DIAL_ERR: %v", err)
@@ -323,7 +359,7 @@ func fixPacketChecksums(pkt []byte) {
 
 func StartRelayVPN(tunFd int) {
 	tunFile := os.NewFile(uintptr(tunFd), "/dev/tun")
-	logToMobile("RELAY: Motor v52.2 (Stable).")
+	logToMobile("RELAY: Motor v52.3 (Stable).")
 	done := make(chan struct{})
 
 	// Tun -> WS

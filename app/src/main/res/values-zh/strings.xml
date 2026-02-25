@@ -6,7 +6,7 @@
     <string name="disconnected">已断开</string>
     <string name="operational">已连接</string>
     <string name="ip_label">"IP: "</string>
-    <string name="technical_log">技术日志 V52.2</string>
+    <string name="technical_log">技术日志 V52.3</string>
     <string name="copy">复制</string>
     <string name="expand">展开</string>
     <string name="reduce">缩小</string>

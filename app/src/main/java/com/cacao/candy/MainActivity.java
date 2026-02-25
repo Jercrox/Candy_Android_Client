@@ -32,6 +32,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import candy_mobile.Candy_mobile;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -59,9 +61,16 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.util.DisplayMetrics;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.X509Certificate;
+
 public class MainActivity extends AppCompatActivity {
 
     private Button btnConnect, btnCopyLog, btnResizeLog;
+    private android.widget.ImageButton btnSettings;
     private TextView txtStatus, textViewLog, txtTitle, txtIpAddress, txtLogHeader;
     private ScrollView scrollViewLog;
     private EditText editPassword, editServer;
@@ -214,14 +223,103 @@ public class MainActivity extends AppCompatActivity {
         sendBroadcast(intent);
     }
 
+    private boolean isAnotherVpnActive() {
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                java.net.NetworkInterface i = interfaces.nextElement();
+                if (i.isUp() && (i.getName().contains("tun") || i.getName().contains("ppp") || i.getName().contains("vpn"))) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {}
+        return false;
+    }
+
     private void resolveAndConnect() {
+        if (isAnotherVpnActive()) {
+            appendLog("NET: VPN Detectada. Intentando conexión 'Tunnel-in-Tunnel'...", true);
+        }
         String urlString = editServer.getText().toString().trim();
         if (urlString.isEmpty()) return;
         
         btnConnect.setEnabled(false);
         btnConnect.setText(R.string.resolving);
-        resolvedIp = null; // Reset to ensure no old IP is leaked
+        startResolutionSequence(urlString);
+    }
 
+    private void startResolutionSequence(String urlString) {
+        resolvedIp = null; // Reset
+        
+        android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        String proxy = prefs.getString("proxy_url", "");
+        boolean askMe = prefs.getBoolean("proxy_ask_me", false);
+
+        if (!proxy.isEmpty()) {
+            new Thread(() -> {
+                boolean available = checkProxyAvailability(proxy);
+                if (available) {
+                    if (askMe) {
+                        runOnUiThread(() -> showProxyConfirmationDialog(proxy, urlString));
+                    } else {
+                        applyProxyAndPrepare(proxy, urlString);
+                    }
+                } else {
+                    appendLog("PROXY: Proxy no disponible (" + proxy + "). Usando conexión directa...", true);
+                    Candy_mobile.setProxy(""); // Temporary bypass
+                    proceedWithDirectResolution(urlString);
+                }
+            }).start();
+            return;
+        }
+
+        proceedWithDirectResolution(urlString);
+    }
+
+    private boolean checkProxyAvailability(String proxyUrl) {
+        try {
+            Uri uri = Uri.parse(proxyUrl);
+            String host = uri.getHost();
+            int port = uri.getPort();
+            if (host == null || port == -1) return false;
+            
+            try (java.net.Socket socket = new java.net.Socket()) {
+                socket.connect(new java.net.InetSocketAddress(host, port), 2000);
+                return true;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void showProxyConfirmationDialog(String proxy, String urlString) {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle(R.string.settings_title);
+        builder.setMessage(getString(R.string.msg_proxy_detected, proxy));
+        builder.setPositiveButton(R.string.use_proxy_yes, (d, w) -> applyProxyAndPrepare(proxy, urlString));
+        builder.setNegativeButton(R.string.use_proxy_no, (d, w) -> {
+            Candy_mobile.setProxy("");
+            proceedWithDirectResolution(urlString);
+        });
+        builder.setCancelable(false);
+        builder.show();
+    }
+
+    private void applyProxyAndPrepare(String proxy, String urlString) {
+        boolean isSocks = proxy.toLowerCase().startsWith("socks5:") || proxy.toLowerCase().startsWith("socks5h:");
+        if (isSocks) {
+            appendLog("DNS_TRACE: Proxy SOCKS5 detectado. Bypass total de DNS local.", true);
+            runOnUiThread(() -> {
+                btnConnect.setEnabled(true);
+                prepareVpn();
+            });
+        } else {
+            // Re-resolve but with proxy active in Go
+            proceedWithDirectResolution(urlString);
+        }
+    }
+
+    private void proceedWithDirectResolution(String urlString) {
         new Thread(() -> {
             try {
                 // 1. Precise Parsing using the Split Plan
@@ -343,6 +441,7 @@ public class MainActivity extends AppCompatActivity {
         btnConnect = findViewById(R.id.btnConnect);
         btnCopyLog = findViewById(R.id.btnCopyLog);
         btnResizeLog = findViewById(R.id.btnResizeLog);
+        btnSettings = findViewById(R.id.btnSettings);
         txtStatus = findViewById(R.id.txtStatus);
         txtIpAddress = findViewById(R.id.txtIpAddress);
         txtTitle = findViewById(R.id.txtTitle);
@@ -448,6 +547,12 @@ public class MainActivity extends AppCompatActivity {
             cb.setPrimaryClip(ClipData.newPlainText("CandyTrace", textViewLog.getText()));
             Toast.makeText(this, "Informe copiado para desarrollo", Toast.LENGTH_SHORT).show();
         });
+
+        // Open Settings when clicking on the Gear icon
+        if (btnSettings != null) {
+            btnSettings.setOnClickListener(v -> showSettingsDialog());
+        }
+
         btnResizeLog.setOnClickListener(v -> {
             isLogMaximized = !isLogMaximized;
             layoutTopControls.setVisibility(isLogMaximized ? View.GONE : View.VISIBLE);
@@ -548,6 +653,14 @@ public class MainActivity extends AppCompatActivity {
             .putString("server", serverUrl)
             .apply();
 
+        String proxy = getPreferences(MODE_PRIVATE).getString("proxy_url", "");
+        if (!proxy.isEmpty()) {
+            Candy_mobile.setProxy(proxy);
+            appendLog("PROXY: Enviando configuración al núcleo: " + proxy, true);
+        } else {
+            Candy_mobile.setProxy("");
+        }
+
         try {
             String[] parts = serverUrl.split("/");
             if (parts.length < 5) {
@@ -586,6 +699,96 @@ public class MainActivity extends AppCompatActivity {
         updateUI();
     }
 
+    private void showSettingsDialog() {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.setContentView(R.layout.dialog_identity_match);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
+        TextView title = dialog.findViewById(R.id.dialog_title);
+        if (title != null) title.setText(R.string.settings_title);
+
+        TextView prefix = dialog.findViewById(R.id.dialog_msg_prefix);
+        if (prefix != null) prefix.setText(R.string.proxy_label);
+
+        TextView matchedUrlTxt = dialog.findViewById(R.id.matched_url);
+        if (matchedUrlTxt != null) {
+            LinearLayout container = (LinearLayout) matchedUrlTxt.getParent();
+            container.removeAllViews();
+
+            EditText editProxy = new EditText(this);
+            editProxy.setHint(R.string.proxy_hint);
+            editProxy.setTextColor(0xFFFFFFFF);
+            editProxy.setHintTextColor(0x88FFFFFF);
+            String savedProxy = getPreferences(MODE_PRIVATE).getString("proxy_url", "");
+            editProxy.setText(savedProxy);
+            container.addView(editProxy);
+
+            android.widget.CheckBox cbAsk = new android.widget.CheckBox(this);
+            cbAsk.setText(R.string.settings_ask_proxy);
+            cbAsk.setTextColor(0xFFDDDDDD);
+            cbAsk.setChecked(getPreferences(MODE_PRIVATE).getBoolean("proxy_ask_me", false));
+            container.addView(cbAsk);
+
+            TextView statusText = dialog.findViewById(R.id.dialog_msg_suffix);
+            if (statusText != null) {
+                statusText.setVisibility(View.VISIBLE);
+                boolean proxyActive = isConnected && !savedProxy.isEmpty();
+                String status = getString(R.string.proxy_status_label) + 
+                                (proxyActive ? getString(R.string.proxy_connected) : getString(R.string.proxy_disconnected));
+                statusText.setText(status);
+                statusText.setTextColor(proxyActive ? 0xFF00FF00 : 0xFFFF4444); // Green if active, red if not
+            }
+
+            Button btnDisconnect = dialog.findViewById(R.id.btn_no_new);
+            if (btnDisconnect != null) {
+                btnDisconnect.setVisibility(savedProxy.isEmpty() ? View.GONE : View.VISIBLE);
+                btnDisconnect.setText(R.string.disconnect_proxy);
+                btnDisconnect.setOnClickListener(v -> {
+                    // Solo "desactivamos" temporalmente pero mantenemos el valor en el input si se quiere
+                    // En realidad, para cumplir con "evitar borrarlo del Input", NO borramos proxy_url del pref.
+                    // Pero para la sesión actual, llamamos a setProxy("")
+                    Candy_mobile.setProxy("");
+                    appendLog("PROXY: Desactivado para esta sesión.", true);
+                    dialog.dismiss();
+                    Toast.makeText(this, getString(R.string.disconnect_proxy), Toast.LENGTH_SHORT).show();
+                    
+                    if (isConnected) {
+                        appendLog("PROXY: Desconectando proxy. Re-conectando VPN directa...", true);
+                        stopVpnService();
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> btnConnect.performClick(), 1500);
+                    }
+                });
+            }
+
+            Button btnSave = dialog.findViewById(R.id.btn_yes_persist);
+            if (btnSave != null) {
+                btnSave.setText(R.string.save);
+                btnSave.setOnClickListener(v -> {
+                    String proxy = editProxy.getText().toString().trim();
+                    boolean askMe = cbAsk.isChecked();
+                    getPreferences(MODE_PRIVATE).edit()
+                        .putString("proxy_url", proxy)
+                        .putBoolean("proxy_ask_me", askMe)
+                        .apply();
+                    Candy_mobile.setProxy(proxy);
+                    dialog.dismiss();
+                    Toast.makeText(this, getString(R.string.save), Toast.LENGTH_SHORT).show();
+                    
+                    if (isConnected) {
+                        appendLog("PROXY: Configuración actualizada. Re-conectando...", true);
+                        stopVpnService();
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> btnConnect.performClick(), 1500);
+                    }
+                });
+            }
+        }
+
+        View chooseOther = dialog.findViewById(R.id.btn_choose_other);
+        if (chooseOther != null) chooseOther.setVisibility(View.GONE);
+
+        dialog.show();
+    }
+
     private void checkIdentityHost(String serverUrl, String p, String finalUrl) {
         android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         String host = extractDomain(serverUrl);
@@ -597,6 +800,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         String currentIdKey = getIdentityKey(serverUrl);
+
         // If this exact URL already has a generated identity, just use it directly
         if (!prefs.getString("id_" + currentIdKey, "").isEmpty()) {
             launchVpnFinal(serverUrl, p, finalUrl, null);
@@ -946,7 +1150,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String resolveDnsDirectUdp(String domain) {
-        String[] servers = {"8.8.8.8", "8.8.4.4", "1.1.1.1", "2001:4860:4860::8888", "2606:4700:4700::1111"};
+        String[] servers = {"1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "2606:4700:4700::1111", "2001:4860:4860::8888"};
         for (String dns : servers) {
             try {
                 java.net.InetAddress addr = java.net.InetAddress.getByName(dns);
@@ -962,8 +1166,8 @@ public class MainActivity extends AppCompatActivity {
 
     private String resolveDnsExternal(String domain) {
         String[] urls = {
-            "https://dns.google/resolve?name=" + domain + "&type=A",
-            "https://cloudflare-dns.com/dns-query?name=" + domain + "&type=A"
+            "https://cloudflare-dns.com/dns-query?name=" + domain + "&type=A",
+            "https://dns.google/resolve?name=" + domain + "&type=A"
         };
         for (String url : urls) {
             String ip = queryDns(url);
