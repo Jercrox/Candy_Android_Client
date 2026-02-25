@@ -77,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
     private Spinner spinnerLanguage;
     private LinearLayout layoutTopControls;
     private String resolvedIp = null;
+    private String activeSessionProxy = "";
 
     private boolean isConnected = false;
     private static boolean activeStatus = false;
@@ -250,12 +251,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void startResolutionSequence(String urlString) {
         resolvedIp = null; // Reset
+        activeSessionProxy = ""; // Default to direct
         
         android.content.SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        boolean proxyEnabled = prefs.getBoolean("proxy_enabled", true);
         String proxy = prefs.getString("proxy_url", "");
         boolean askMe = prefs.getBoolean("proxy_ask_me", false);
 
-        if (!proxy.isEmpty()) {
+        if (proxyEnabled && !proxy.isEmpty()) {
             new Thread(() -> {
                 boolean available = checkProxyAvailability(proxy);
                 if (available) {
@@ -265,8 +268,8 @@ public class MainActivity extends AppCompatActivity {
                         applyProxyAndPrepare(proxy, urlString);
                     }
                 } else {
-                    appendLog("PROXY: Proxy no disponible (" + proxy + "). Usando conexión directa...", true);
-                    Candy_mobile.setProxy(""); // Temporary bypass
+                    appendLog("PROXY: Proxy no disponible o inalcanzable (" + proxy + "). Usando conexión directa...", true);
+                    activeSessionProxy = ""; 
                     proceedWithDirectResolution(urlString);
                 }
             }).start();
@@ -293,19 +296,58 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showProxyConfirmationDialog(String proxy, String urlString) {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle(R.string.settings_title);
-        builder.setMessage(getString(R.string.msg_proxy_detected, proxy));
-        builder.setPositiveButton(R.string.use_proxy_yes, (d, w) -> applyProxyAndPrepare(proxy, urlString));
-        builder.setNegativeButton(R.string.use_proxy_no, (d, w) -> {
-            Candy_mobile.setProxy("");
-            proceedWithDirectResolution(urlString);
-        });
-        builder.setCancelable(false);
-        builder.show();
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.setContentView(R.layout.dialog_identity_match);
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        dialog.setCancelable(false);
+
+        TextView title = dialog.findViewById(R.id.dialog_title);
+        if (title != null) title.setText(R.string.settings_title);
+
+        TextView prefix = dialog.findViewById(R.id.dialog_msg_prefix);
+        if (prefix != null) {
+            prefix.setText(getString(R.string.msg_proxy_detected, proxy));
+            prefix.setTextSize(16f);
+            prefix.setLineSpacing(0, 1.2f);
+        }
+
+        // Hide elements not needed for confirmation
+        View matchedUrlView = dialog.findViewById(R.id.matched_url);
+        if (matchedUrlView != null) {
+            View matchedContainer = (View) matchedUrlView.getParent();
+            if (matchedContainer != null) matchedContainer.setVisibility(View.GONE);
+        }
+        View suffix = dialog.findViewById(R.id.dialog_msg_suffix);
+        if (suffix != null) suffix.setVisibility(View.GONE);
+
+        Button btnNo = dialog.findViewById(R.id.btn_no_new);
+        if (btnNo != null) {
+            btnNo.setText(R.string.use_proxy_no);
+            btnNo.setTextColor(0xFFFFFFFF);
+            btnNo.setTextSize(12f);
+            btnNo.setOnClickListener(v -> {
+                activeSessionProxy = "";
+                dialog.dismiss();
+                proceedWithDirectResolution(urlString);
+            });
+        }
+
+        Button btnYes = dialog.findViewById(R.id.btn_yes_persist);
+        if (btnYes != null) {
+            btnYes.setText(R.string.use_proxy_yes);
+            btnYes.setTextColor(0xFFFFFFFF);
+            btnYes.setTextSize(12f);
+            btnYes.setOnClickListener(v -> {
+                dialog.dismiss();
+                applyProxyAndPrepare(proxy, urlString);
+            });
+        }
+
+        dialog.show();
     }
 
     private void applyProxyAndPrepare(String proxy, String urlString) {
+        activeSessionProxy = proxy;
         boolean isSocks = proxy.toLowerCase().startsWith("socks5:") || proxy.toLowerCase().startsWith("socks5h:");
         if (isSocks) {
             appendLog("DNS_TRACE: Proxy SOCKS5 detectado. Bypass total de DNS local.", true);
@@ -653,12 +695,12 @@ public class MainActivity extends AppCompatActivity {
             .putString("server", serverUrl)
             .apply();
 
-        String proxy = getPreferences(MODE_PRIVATE).getString("proxy_url", "");
-        if (!proxy.isEmpty()) {
-            Candy_mobile.setProxy(proxy);
-            appendLog("PROXY: Enviando configuración al núcleo: " + proxy, true);
+        if (activeSessionProxy != null && !activeSessionProxy.isEmpty()) {
+            Candy_mobile.setProxy(activeSessionProxy);
+            appendLog("PROXY: Aplicando configuración activa: " + activeSessionProxy, true);
         } else {
             Candy_mobile.setProxy("");
+            appendLog("PROXY: Conexión directa habilitada para esta sesión.", true);
         }
 
         try {
@@ -723,6 +765,12 @@ public class MainActivity extends AppCompatActivity {
             editProxy.setText(savedProxy);
             container.addView(editProxy);
 
+            android.widget.CheckBox cbEnable = new android.widget.CheckBox(this);
+            cbEnable.setText(R.string.proxy_enabled_label);
+            cbEnable.setTextColor(0xFFDDDDDD);
+            cbEnable.setChecked(getPreferences(MODE_PRIVATE).getBoolean("proxy_enabled", true));
+            container.addView(cbEnable);
+
             android.widget.CheckBox cbAsk = new android.widget.CheckBox(this);
             cbAsk.setText(R.string.settings_ask_proxy);
             cbAsk.setTextColor(0xFFDDDDDD);
@@ -730,33 +778,72 @@ public class MainActivity extends AppCompatActivity {
             container.addView(cbAsk);
 
             TextView statusText = dialog.findViewById(R.id.dialog_msg_suffix);
-            if (statusText != null) {
+            
+            Runnable checkStatus = () -> {
+                if (statusText == null) return;
                 statusText.setVisibility(View.VISIBLE);
-                boolean proxyActive = isConnected && !savedProxy.isEmpty();
-                String status = getString(R.string.proxy_status_label) + 
-                                (proxyActive ? getString(R.string.proxy_connected) : getString(R.string.proxy_disconnected));
-                statusText.setText(status);
-                statusText.setTextColor(proxyActive ? 0xFF00FF00 : 0xFFFF4444); // Green if active, red if not
+                statusText.setText(R.string.checking);
+                statusText.setTextColor(0xFFAAAAAA);
+                new Thread(() -> {
+                    boolean available = !savedProxy.isEmpty() && checkProxyAvailability(savedProxy);
+                    runOnUiThread(() -> {
+                        if (!dialog.isShowing()) return;
+                        String status = getString(R.string.proxy_status_label) + " " +
+                                        (available ? getString(R.string.proxy_connected) : getString(R.string.proxy_disconnected));
+                        statusText.setText(status);
+                        statusText.setTextColor(available ? 0xFF00FF00 : 0xFFFF4444);
+                    });
+                }).start();
+            };
+
+            if (statusText != null) {
+                boolean isEnabled = getPreferences(MODE_PRIVATE).getBoolean("proxy_enabled", true);
+                if (isEnabled) checkStatus.run(); else {
+                    statusText.setVisibility(View.VISIBLE);
+                    statusText.setText(getString(R.string.proxy_status_label) + " " + getString(R.string.proxy_disconnected));
+                    statusText.setTextColor(0xFFFF4444);
+                }
             }
 
-            Button btnDisconnect = dialog.findViewById(R.id.btn_no_new);
-            if (btnDisconnect != null) {
-                btnDisconnect.setVisibility(savedProxy.isEmpty() ? View.GONE : View.VISIBLE);
-                btnDisconnect.setText(R.string.disconnect_proxy);
-                btnDisconnect.setOnClickListener(v -> {
-                    // Solo "desactivamos" temporalmente pero mantenemos el valor en el input si se quiere
-                    // En realidad, para cumplir con "evitar borrarlo del Input", NO borramos proxy_url del pref.
-                    // Pero para la sesión actual, llamamos a setProxy("")
+            Button btnAction = dialog.findViewById(R.id.btn_no_new);
+            
+            Runnable applyToggle = () -> {
+                boolean nowEnabled = getPreferences(MODE_PRIVATE).getBoolean("proxy_enabled", true);
+                cbEnable.setChecked(nowEnabled);
+                if (btnAction != null) btnAction.setText(nowEnabled ? R.string.disconnect_proxy : R.string.connect_proxy);
+                
+                if (!nowEnabled) {
+                    activeSessionProxy = "";
                     Candy_mobile.setProxy("");
-                    appendLog("PROXY: Desactivado para esta sesión.", true);
-                    dialog.dismiss();
-                    Toast.makeText(this, getString(R.string.disconnect_proxy), Toast.LENGTH_SHORT).show();
-                    
-                    if (isConnected) {
-                        appendLog("PROXY: Desconectando proxy. Re-conectando VPN directa...", true);
-                        stopVpnService();
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> btnConnect.performClick(), 1500);
+                    if (statusText != null) {
+                        statusText.setText(getString(R.string.proxy_status_label) + " " + getString(R.string.proxy_disconnected));
+                        statusText.setTextColor(0xFFFF4444);
                     }
+                    appendLog("PROXY: Servidor SOCKS5 desactivado.", true);
+                } else {
+                    checkStatus.run();
+                }
+                
+                if (isConnected) {
+                    appendLog("PROXY: Re-iniciando túnel para aplicar cambios...", true);
+                    stopVpnService();
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> btnConnect.performClick(), 1200);
+                }
+            };
+
+            cbEnable.setOnClickListener(v -> {
+                getPreferences(MODE_PRIVATE).edit().putBoolean("proxy_enabled", cbEnable.isChecked()).apply();
+                applyToggle.run();
+            });
+
+            if (btnAction != null) {
+                btnAction.setVisibility(savedProxy.isEmpty() ? View.GONE : View.VISIBLE);
+                boolean isEnabled = getPreferences(MODE_PRIVATE).getBoolean("proxy_enabled", true);
+                btnAction.setText(isEnabled ? R.string.disconnect_proxy : R.string.connect_proxy);
+                btnAction.setOnClickListener(v -> {
+                    boolean target = !getPreferences(MODE_PRIVATE).getBoolean("proxy_enabled", true);
+                    getPreferences(MODE_PRIVATE).edit().putBoolean("proxy_enabled", target).apply();
+                    applyToggle.run();
                 });
             }
 
@@ -766,9 +853,11 @@ public class MainActivity extends AppCompatActivity {
                 btnSave.setOnClickListener(v -> {
                     String proxy = editProxy.getText().toString().trim();
                     boolean askMe = cbAsk.isChecked();
+                    boolean enabled = cbEnable.isChecked();
                     getPreferences(MODE_PRIVATE).edit()
                         .putString("proxy_url", proxy)
                         .putBoolean("proxy_ask_me", askMe)
+                        .putBoolean("proxy_enabled", enabled)
                         .apply();
                     Candy_mobile.setProxy(proxy);
                     dialog.dismiss();

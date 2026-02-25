@@ -65,25 +65,33 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="end">
+        android:gravity="center">
 
         <Button
             android:id="@+id/btn_no_new"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/identity_match_no"
-            android:textColor="#BBBBBB"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
             android:background="@drawable/btn_border_gray"
-            android:layout_marginEnd="12dp"
-            style="?android:attr/borderlessButtonStyle"/>
+            android:layout_marginEnd="8dp"
+            android:textAllCaps="false"
+            android:singleLine="true"/>
 
         <Button
             android:id="@+id/btn_yes_persist"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/identity_match_yes"
-            android:textColor="#BB86FC"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:paddingLeft="30dp"
+            android:paddingRight="30dp"
             android:background="@drawable/btn_border_purple"
-            style="?android:attr/borderlessButtonStyle"/>
+            android:textAllCaps="false"
+            android:singleLine="true"/>
     </LinearLayout>
 </LinearLayout>

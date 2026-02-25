@@ -57,8 +57,11 @@
     <string name="proxy_connected">Conectado</string>
     <string name="proxy_disconnected">Desconectado</string>
     <string name="disconnect_proxy">DESCONECTAR</string>
+    <string name="connect_proxy">CONECTAR</string>
     <string name="settings_ask_proxy">Preguntarme si deseo usar este proxy</string>
-    <string name="msg_proxy_detected">Se detectó un proxy en %1$s. ¿Deseas usarlo?</string>
+    <string name="msg_proxy_detected">Se detectó un proxy en:\n%1$s\n\n¿Deseas usarlo?</string>
     <string name="use_proxy_yes">USAR PROXY</string>
     <string name="use_proxy_no">CONEXIÓN DIRECTA</string>
+    <string name="proxy_enabled_label">Habilitar Proxy</string>
+    <string name="checking">Comprobando estado...</string>
 </resources>
