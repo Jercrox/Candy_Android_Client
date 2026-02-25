@@ -326,7 +326,12 @@ public class MainActivity extends AppCompatActivity {
             btnNo.setTextColor(0xFFFFFFFF);
             btnNo.setTextSize(12f);
             btnNo.setOnClickListener(v -> {
+                // Ensure proxy is disabled in settings and disconnected in engine
+                getPreferences(MODE_PRIVATE).edit().putBoolean("proxy_enabled", false).apply();
+                Candy_mobile.setProxy("");
                 activeSessionProxy = "";
+                appendLog("PROXY: Usuario rechazó detección. Conexión directa forzada.", true);
+                
                 dialog.dismiss();
                 proceedWithDirectResolution(urlString);
             });

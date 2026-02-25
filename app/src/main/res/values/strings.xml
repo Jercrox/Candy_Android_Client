@@ -60,8 +60,8 @@
     <string name="connect_proxy">CONNECT</string>
     <string name="settings_ask_proxy">Ask me if I want to use this proxy</string>
     <string name="msg_proxy_detected">A proxy was detected at:\n%1$s\n\nDo you want to use it?</string>
-    <string name="use_proxy_yes">USE PROXY</string>
-    <string name="use_proxy_no">DIRECT CONNECTION</string>
+    <string name="use_proxy_yes">Yes, use proxy.</string>
+    <string name="use_proxy_no">No</string>
     <string name="proxy_enabled_label">Enable Proxy</string>
     <string name="checking">Checking status...</string>
 </resources>
